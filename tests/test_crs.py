@@ -37,16 +37,17 @@ def test_recommend_crs(cape_town_bbox):
         cape_town_bbox
     )
 
-    assert recommendations.global_standard is not None
+    assert recommendations.recommended is not None
 
 
-def test_recommendation_is_utm(cape_town_bbox):
+def test_cape_town_returns_sa_projection(cape_town_bbox):
 
-    recommendations = recommend_crs(
-        cape_town_bbox
-    )
+    recommendation = recommend_crs(cape_town_bbox)
 
-    assert (
-        "utm"
-        in recommendations.global_standard.name.lower()
-    )
+    assert recommendation.recommended.code == "2054"
+
+def test_london_returns_bng(london_bbox):
+
+    recommendation = recommend_crs(london_bbox)
+
+    assert recommendation.recommended.code == "27700"

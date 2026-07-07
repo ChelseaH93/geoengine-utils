@@ -1,3 +1,4 @@
+from pyproj import CRS
 from pyproj.database import query_crs_info
 from pyproj.enums import PJType
 from pyproj.aoi import AreaOfInterest
@@ -6,6 +7,7 @@ from shapely.geometry.base import BaseGeometry
 
 from .models import CRSInfo
 from .models import CRSRecommendation
+from .registry import PREFERRED_CRS
 
 def _normalise_bounds(
     geometry: BaseGeometry | tuple
@@ -79,33 +81,109 @@ def _score(crs: CRSInfo):
 
     return score
 
-def recommend_crs(
-    geometry,
-) -> CRSRecommendation:
+def recommend_crs(geometry):
 
-    matches = find_matching_crs(
-        geometry
-    )
+    bounds = _normalise_bounds(geometry)
+
+    matches = _query_matching_crs(bounds)
 
     if not matches:
+        raise ValueError("No projected CRS found.")
 
-        raise ValueError(
-            "No projected CRS found."
-        )
+    minx, miny, maxx, maxy = bounds
 
-    matches.sort(
-        key=_score,
-        reverse=True,
-    )
+    lon = (minx + maxx) / 2
+    lat = (miny + maxy) / 2
 
-    best = matches[0]
+    #
+    # STEP 1
+    # Look for preferred national CRS
+    #
+
+    for match in matches:
+
+        if not match.area_of_use:
+            continue
+
+        area_name = match.area_of_use.name
+
+        for country, preferred in PREFERRED_CRS.items():
+
+            if country.lower() in area_name.lower():
+
+                crs = CRS.from_epsg(preferred.epsg)
+
+                return CRSRecommendation(
+
+                    recommended=CRSInfo(
+                        auth_name="EPSG",
+                        code=str(preferred.epsg),
+                        name=crs.name,
+                        area_of_use=crs.area_of_use.name,
+                    ),
+
+                    alternatives=[],
+
+                    reason=preferred.reason,
+                )
+
+    #
+    # STEP 2
+    # Otherwise recommend UTM
+    #
+
+    epsg = _utm_epsg(lon, lat)
+
+    crs = CRS.from_epsg(epsg)
 
     return CRSRecommendation(
-        recommended=best,
-        alternatives=matches[1:6],
-        reason=(
-            f"{best.auth_name}:{best.code} "
-            "is the highest ranked projected CRS "
-            "covering the supplied extent."
+
+        recommended=CRSInfo(
+            auth_name="EPSG",
+            code=str(epsg),
+            name=crs.name,
+            area_of_use=crs.area_of_use.name,
         ),
+
+        alternatives=[],
+
+        reason="Nearest UTM projection based on dataset centroid.",
     )
+
+def _normalise_bounds(geometry):
+
+    if hasattr(geometry, "bounds"):
+        return geometry.bounds
+
+    if isinstance(geometry, tuple):
+
+        if len(geometry) != 4:
+            raise ValueError("Bounds must be (minx,miny,maxx,maxy).")
+
+        return geometry
+
+    raise TypeError("Unsupported geometry.")
+
+def _query_matching_crs(bounds):
+
+    minx, miny, maxx, maxy = bounds
+
+    return query_crs_info(
+        pj_types=PJType.PROJECTED_CRS,
+        area_of_interest=AreaOfInterest(
+            west_lon_degree=minx,
+            south_lat_degree=miny,
+            east_lon_degree=maxx,
+            north_lat_degree=maxy,
+        ),
+        contains=False,
+    )
+
+def _utm_epsg(lon, lat):
+
+    zone = int((lon + 180) / 6) + 1
+
+    if lat >= 0:
+        return 32600 + zone
+
+    return 32700 + zone

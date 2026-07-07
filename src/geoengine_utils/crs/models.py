@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import List
 
 
 @dataclass(slots=True)
@@ -13,5 +12,5 @@ class CRSInfo:
 @dataclass(slots=True)
 class CRSRecommendation:
     recommended: CRSInfo
-    alternatives: List[CRSInfo]
+    alternatives: list[CRSInfo]
     reason: str

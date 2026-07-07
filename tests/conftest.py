@@ -20,3 +20,12 @@ def cape_town_bbox():
         18.7,
         -33.8,
     )
+
+@pytest.fixture
+def london_bbox():
+    return box(
+        -0.2,
+        51.4,
+        0.1,
+        51.6,
+    )
