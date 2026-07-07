@@ -14,7 +14,11 @@ The goal is to provide production-ready utilities that help engineers build scal
 
 - Read raster metadata
 - Validate raster datasets
+- Estimate a suitable projected CRS from raster/vector datasets, geometries, or bounds
+- Validate CRS definitions and recommend CRS choices for country or geometry-based workflows
 - Production-ready validation reports
+- Vector validation helpers
+- Command Line Interface for raster validation
 
 ### Planned
 
@@ -25,9 +29,6 @@ The goal is to provide production-ready utilities that help engineers build scal
 - STAC metadata generation
 - Raster clipping
 - Raster reprojection
-- CRS utilities
-- Vector validation
-- Command Line Interface
 - Performance benchmarking
 
 ---
@@ -94,6 +95,8 @@ python -m geoengine_utils.cli validate example.tif
 A passing validation returns exit code `0`, while failing validation returns `1` so it can be used in scripts and CI pipelines.
 
 ### CRS and vector helpers
+
+Recent progress includes a new dataset-aware CRS estimation workflow. You can now estimate a suitable projected CRS from a GeoJSON, GeoPackage, raster file, geometry, or bounds tuple.
 
 You can use the CRS helpers to validate a CRS definition or estimate a suitable projected CRS for a dataset footprint.
 
