@@ -1,23 +1,54 @@
-from importlib.resources import files
+from functools import lru_cache
+from pathlib import Path
 
 import geopandas as gpd
 
 
-_COUNTRIES = None
+DATA_PATH = (
+    Path(__file__).parent
+    / "data"
+    / "countries.parquet"
+)
 
 
+@lru_cache(maxsize=1)
 def get_countries():
 
-    global _COUNTRIES
+    return gpd.read_parquet(
+        DATA_PATH
+    )
 
-    if _COUNTRIES is None:
 
-        path = (
-            files("geoengine_utils")
-            / "data"
-            / "countries.parquet"
+def get_country(country_name: str):
+
+    countries = get_countries()
+
+    name = country_name.strip().lower()
+
+    match = countries[
+        countries["ADMIN"]
+        .str.lower()
+        .str.strip()
+        == name
+    ]
+
+    if match.empty:
+        raise ValueError(
+            f"Country '{country_name}' not found"
         )
 
-        _COUNTRIES = gpd.read_file(path)
+    return match.iloc[0]
 
-    return _COUNTRIES
+
+def get_country_centroid(country_name):
+
+    country = get_country(
+        country_name
+    )
+
+    return {
+        "country": country.ADMIN,
+        "longitude": country.centroid_lon,
+        "latitude": country.centroid_lat,
+        "utm_epsg": country.utm_epsg,
+    }

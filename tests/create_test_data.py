@@ -1,4 +1,5 @@
 from pathlib import Path
+from shapely.geometry import box
 
 import numpy as np
 import rasterio
@@ -38,3 +39,12 @@ with rasterio.open(
     dst.write(array, 1)
 
 print("Created:", output)
+
+def south_africa_bbox():
+
+    return box(
+        16,
+        -35,
+        33,
+        -22,
+    )
