@@ -15,6 +15,7 @@ def main(*args, **kwargs):
 
 
 from .crs import (
+    estimate_crs,
     find_matching_crs,
     recommend_crs,
     transform_geometry,
@@ -24,10 +25,12 @@ from .raster import get_raster_metadata, validate_raster
 
 __all__ = [
     "main",
+    "__version__",
     "get_raster_metadata",
     "validate_raster",
     "find_matching_crs",
     "recommend_crs",
+    "estimate_crs",
     "transform_geometry",
     "validate_crs",
 ]
