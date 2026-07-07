@@ -7,6 +7,7 @@ import sys
 from typing import Any, Sequence
 
 from . import __version__
+from .raster import validate_raster
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -18,6 +19,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="version",
         version=f"%(prog)s {__version__}",
     )
+
+    subparsers = parser.add_subparsers(dest="command")
+    validate_parser = subparsers.add_parser("validate", help="Validate a raster dataset")
+    validate_parser.add_argument("path", help="Path to the raster file to validate")
+
     return parser
 
 
@@ -42,9 +48,18 @@ def main(args: Sequence[str] | None = None, *, stdout: Any | None = None) -> int
         parser._print_message = lambda message, file=None: print(message, file=stdout)
 
     try:
-        parser.parse_args(args if args is not None else sys.argv[1:])
+        parsed_args = parser.parse_args(args if args is not None else sys.argv[1:])
     except SystemExit as exc:
         return int(exc.code)
+
+    if parsed_args.command == "validate":
+        report = validate_raster(parsed_args.path)
+        output = report.format_report()
+        if stdout is None:
+            print(output)
+        else:
+            print(output, file=stdout)
+        return 0 if report.passed else 1
 
     return 0
 

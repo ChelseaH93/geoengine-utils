@@ -1,8 +1,11 @@
+from pathlib import Path
+
 from shapely.geometry import box
 
 from geoengine_utils.crs.recommend import (
     recommend_crs,
     recommend,
+    estimate_crs,
 )
 
 def test_recommendation_has_reason():
@@ -53,3 +56,13 @@ def test_recommend_country():
         result.recommended.code
         == "32734"
     )
+
+
+def test_estimate_crs_from_vector_path():
+
+    path = Path(__file__).parent / "data" / "test_polygon.geojson"
+
+    result = estimate_crs(path)
+
+    assert result.recommended
+    assert result.recommended.code

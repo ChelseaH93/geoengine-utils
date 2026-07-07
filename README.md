@@ -73,22 +73,43 @@ pip install -e .
 ## Quick Start
 
 ```python
-from geoengine_utils import validate_raster
+from geoengine_utils import get_raster_metadata, validate_raster
 
+metadata = get_raster_metadata("example.tif")
 result = validate_raster("example.tif")
 
-print(result)
+print(metadata)
+print(result.passed)
+print(result.errors)
 ```
 
-Example output
+### CLI validation
 
-```text
-ValidationResult(
-    passed=True,
-    warnings=[],
-    errors=[]
-)
+You can also validate a raster from the command line:
+
+```bash
+python -m geoengine_utils.cli validate example.tif
 ```
+
+A passing validation returns exit code `0`, while failing validation returns `1` so it can be used in scripts and CI pipelines.
+
+### CRS and vector helpers
+
+You can use the CRS helpers to validate a CRS definition or estimate a suitable projected CRS for a dataset footprint.
+
+```python
+from pathlib import Path
+
+from geoengine_utils import estimate_crs, validate_crs
+
+print(validate_crs("EPSG:4326"))
+
+recommendation = estimate_crs(Path("example.geojson"))
+print(recommendation.recommended)
+print(recommendation.alternatives[:3])
+```
+
+For country-specific defaults, the package can also recommend a CRS from a country centroid.
 
 ---
 

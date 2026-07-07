@@ -1,7 +1,11 @@
 """CRS recommendation helpers for projected coordinate systems."""
 
+from os import PathLike
+from pathlib import Path
 from typing import Any
 
+import geopandas as gpd
+import rasterio
 from pyproj import CRS
 from pyproj.aoi import AreaOfInterest
 from pyproj.database import query_crs_info
@@ -19,12 +23,17 @@ def normalise_bounds(
     """Normalise a geometry or bounds tuple into a 4-tuple."""
 
     if hasattr(geometry, "bounds"):
-        return geometry.bounds
+        return tuple(float(value) for value in geometry.bounds)
+
+    if hasattr(geometry, "__len__") and not isinstance(geometry, (str, bytes)):
+        values = list(geometry)
+        if len(values) == 4:
+            return tuple(float(value) for value in values)
 
     if isinstance(geometry, tuple):
         if len(geometry) != 4:
             raise ValueError("Bounds must be (minx,miny,maxx,maxy)")
-        return geometry
+        return tuple(float(value) for value in geometry)
 
     raise TypeError("Expected shapely geometry or bounds tuple")
 
@@ -160,6 +169,44 @@ def recommend_crs(
         alternatives=alternatives,
         reason="Recommended UTM CRS based on geometry centroid.",
     )
+
+
+def estimate_crs(data: Any) -> CRSRecommendation:
+    """Estimate a suitable projected CRS from a dataset path, geometry, or bounds."""
+
+    if isinstance(data, (str, PathLike)):
+        path = Path(data)
+
+        if not path.exists():
+            raise FileNotFoundError(f"Dataset not found: {path}")
+
+        try:
+            vector_data = gpd.read_file(path)
+        except Exception:
+            with rasterio.open(path) as src:
+                bounds = (
+                    src.bounds.left,
+                    src.bounds.bottom,
+                    src.bounds.right,
+                    src.bounds.top,
+                )
+            return recommend_crs(bounds)
+
+        return recommend_crs(vector_data.total_bounds)
+
+    if isinstance(data, gpd.GeoDataFrame):
+        return recommend_crs(data.total_bounds)
+
+    if isinstance(data, gpd.GeoSeries):
+        return recommend_crs(data.total_bounds)
+
+    if hasattr(data, "bounds") and hasattr(data, "total_bounds"):
+        return recommend_crs(data.total_bounds)
+
+    if hasattr(data, "bounds"):
+        return recommend_crs(data.bounds)
+
+    return recommend_crs(data)
 
 
 def find_matching_crs(
