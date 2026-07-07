@@ -7,6 +7,7 @@ import sys
 from typing import Any, Sequence
 
 from . import __version__
+from .crs import estimate_crs
 from .raster import validate_raster
 
 
@@ -23,6 +24,12 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command")
     validate_parser = subparsers.add_parser("validate", help="Validate a raster dataset")
     validate_parser.add_argument("path", help="Path to the raster file to validate")
+
+    estimate_parser = subparsers.add_parser(
+        "estimate-crs",
+        help="Estimate a suitable projected CRS for a dataset",
+    )
+    estimate_parser.add_argument("path", help="Path to a vector or raster dataset")
 
     return parser
 
@@ -60,6 +67,17 @@ def main(args: Sequence[str] | None = None, *, stdout: Any | None = None) -> int
         else:
             print(output, file=stdout)
         return 0 if report.passed else 1
+
+    if parsed_args.command == "estimate-crs":
+        recommendation = estimate_crs(parsed_args.path)
+        output = (
+            f"recommended_crs={recommendation.recommended.auth_name}:{recommendation.recommended.code}"
+        )
+        if stdout is None:
+            print(output)
+        else:
+            print(output, file=stdout)
+        return 0
 
     return 0
 

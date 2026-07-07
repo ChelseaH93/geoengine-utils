@@ -43,7 +43,7 @@ def query_matching_crs(bounds: tuple[float, float, float, float]) -> list[Any]:
 
     minx, miny, maxx, maxy = bounds
 
-    return query_crs_info(
+    matches = query_crs_info(
         pj_types=PJType.PROJECTED_CRS,
         area_of_interest=AreaOfInterest(
             west_lon_degree=minx,
@@ -53,6 +53,11 @@ def query_matching_crs(bounds: tuple[float, float, float, float]) -> list[Any]:
         ),
         contains=False,
     )
+
+    if not matches:
+        raise ValueError("No projected CRS found for the supplied bounds")
+
+    return matches
 
 
 def crs_to_info(crs: Any, score: float = 0) -> CRSInfo:
@@ -103,11 +108,17 @@ def find_country_candidate_crs(latitude: float, longitude: float) -> list[Any]:
     return query_matching_crs(bounds)
 
 
-def score_crs(crs: Any) -> int:
-    """Score a CRS candidate using heuristics that favour UTM-style options."""
+def score_crs(crs: Any, lon: float | None = None, lat: float | None = None) -> int:
+    """Score a CRS candidate using location-aware heuristics.
+
+    The scoring now considers the candidate CRS name, the area of use,
+    whether it is a UTM-style CRS, and whether its authority code aligns with
+    the geometry centroid location.
+    """
 
     score = 0
-    name = crs.name.lower()
+    name = (getattr(crs, "name", "") or "").lower()
+    area = (getattr(crs.area_of_use, "name", "") or "").lower()
 
     if "utm" in name:
         score += 100
@@ -117,6 +128,30 @@ def score_crs(crs: Any) -> int:
 
     if "transverse mercator" in name:
         score += 15
+
+    if lon is not None and lat is not None:
+        authority = None
+        if hasattr(crs, "to_authority"):
+            try:
+                authority = crs.to_authority()
+            except Exception:
+                authority = None
+
+        if authority is None:
+            authority = (getattr(crs, "auth_name", None), getattr(crs, "code", None))
+
+        if isinstance(authority, (tuple, list)) and len(authority) >= 2:
+            code = str(authority[1] or "")
+            if code.startswith(("326", "327")) and len(code) == 5:
+                zone = int(code[-2:])
+                expected_zone = int((lon + 180) / 6) + 1
+                if zone == expected_zone:
+                    score += 50
+                elif abs(zone - expected_zone) == 1:
+                    score += 20
+
+    if area:
+        score += 5
 
     return score
 
@@ -159,7 +194,10 @@ def recommend_crs(
     crs = CRS.from_epsg(epsg)
 
     alternatives = sorted(
-        [crs_to_info(item, score=score_crs(item)) for item in matches],
+        [
+            crs_to_info(item, score=score_crs(item, lon=lon, lat=lat))
+            for item in matches
+        ],
         key=lambda item: item.score,
         reverse=True,
     )
@@ -237,13 +275,24 @@ def recommend(
             if candidate.code.startswith(("326", "327"))
         ]
 
-        ranked = sorted(candidates, key=score_crs, reverse=True)
+        ranked = sorted(
+            candidates,
+            key=lambda candidate: score_crs(candidate, lon=centroid["longitude"], lat=centroid["latitude"]),
+            reverse=True,
+        )
         recommended = CRS.from_epsg(centroid["utm_epsg"])
 
         return CRSRecommendation(
             recommended=crs_to_info(recommended),
             alternatives=[
-                crs_to_info(candidate, score=score_crs(candidate))
+                crs_to_info(
+                    candidate,
+                    score=score_crs(
+                        candidate,
+                        lon=centroid["longitude"],
+                        lat=centroid["latitude"],
+                    ),
+                )
                 for candidate in ranked[:5]
             ],
             reason="Recommended UTM CRS based on country centroid.",
