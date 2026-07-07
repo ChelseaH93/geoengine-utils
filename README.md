@@ -1,8 +1,8 @@
-# GeoForge
+# geoengine-utils
 
 > Modern Python utilities for geospatial data engineering.
 
-GeoForge is an open-source toolkit designed to simplify common geospatial data engineering tasks such as validating raster datasets, preparing cloud-native geospatial formats, and building reliable GIS data pipelines.
+geoengine-utils is an open-source toolkit designed to simplify common geospatial data engineering tasks such as validating raster datasets, preparing cloud-native geospatial formats, and building reliable GIS data pipelines.
 
 The goal is to provide production-ready utilities that help engineers build scalable geospatial workflows rather than ad hoc scripts.
 
@@ -93,11 +93,11 @@ ValidationResult(
 
 ## Philosophy
 
-GeoForge aims to answer one question:
+geoengine-utils aims to answer one question:
 
 > **"Is this dataset ready for production?"**
 
-Instead of simply reading metadata, GeoForge focuses on validating datasets against best practices used in modern geospatial data engineering workflows.
+Instead of simply reading metadata, geoengine-utils focuses on validating datasets against best practices used in modern geospatial data engineering workflows.
 
 Future validation will include checks for:
 
