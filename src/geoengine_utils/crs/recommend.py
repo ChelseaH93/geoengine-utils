@@ -5,6 +5,8 @@ from pyproj.aoi import AreaOfInterest
 
 from shapely.geometry.base import BaseGeometry
 
+from .country_lookup import get_countries
+
 from .models import CRSInfo
 from .models import CRSRecommendation
 from .registry import PREFERRED_CRS
@@ -29,6 +31,22 @@ def _normalise_bounds(
     raise TypeError(
         "Expected Shapely geometry or bounds tuple."
     )
+
+
+def get_country(geometry: BaseGeometry):
+
+    countries = get_countries()
+
+    centroid = geometry.centroid
+
+    match = countries.loc[
+        countries.contains(centroid)
+    ]
+
+    if match.empty:
+        return None
+
+    return match.iloc[0]["ADMIN"]
 
 def find_matching_crs(
     geometry,
