@@ -151,7 +151,7 @@ Future validation will include checks for:
 
 Contributions are welcome!
 
-If you have ideas for improving GeoForge or spot a bug, feel free to open an issue or submit a pull request.
+If you have ideas for improving geoengine-utils or spot a bug, feel free to open an issue or submit a pull request.
 
 ---
 
