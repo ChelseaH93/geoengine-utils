@@ -1,5 +1,4 @@
-"""
-Coordinate Reference System (CRS) utilities.
+"""Coordinate Reference System (CRS) utilities.
 
 Provides helpers for:
 - recommending suitable projected CRSs
@@ -7,7 +6,7 @@ Provides helpers for:
 - transforming geometries
 """
 
-from .recommend import recommend_crs, find_matching_crs
+from .recommend import find_matching_crs, recommend_crs
 from .transform import transform_geometry
 from .validate import validate_crs
 

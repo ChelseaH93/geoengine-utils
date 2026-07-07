@@ -1,3 +1,5 @@
+"""Raster utilities for metadata inspection and validation."""
+
 from .metadata import get_raster_metadata
 from .validate import validate_raster
 
