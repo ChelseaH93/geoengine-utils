@@ -1,206 +1,64 @@
-# Geospatial API Cookbook
+# API guide
 
-This document contains working examples for interacting with popular geospatial APIs and cloud-native geospatial services using Python.
+This page collects the most relevant package entry points and a few external geospatial services that fit naturally with the toolkit.
 
----
+## geoengine-utils package APIs
 
-# OpenStreetMap
+### Raster inspection and validation
 
-OpenStreetMap (OSM) is the world's largest open geographic database and provides roads, buildings, land use, points of interest, administrative boundaries, and much more.
+```python
+from geoengine_utils import get_raster_metadata, validate_raster
 
-## Best For
+metadata = get_raster_metadata("example.tif")
+report = validate_raster("example.tif")
+```
 
-- Roads
-- Buildings
-- Amenities
-- Parks
-- Administrative boundaries
+### CRS helpers
 
----
+```python
+from geoengine_utils import recommend_crs, validate_crs
 
-## Option 1 - OSMnx (Recommended)
+validate_crs("EPSG:4326")
+recommend_crs(latitude=-33.9, longitude=18.4)
+```
 
-The easiest way to download OpenStreetMap data directly into GeoPandas.
+### Vector helpers
 
-### Install
+```python
+from geoengine_utils.vector import convert_vector, simplify_vector, validate_vector
+
+import geopandas as gpd
+from shapely.geometry import Point
+
+geometries = [Point(0, 0), Point(1, 1)]
+frame = convert_vector(geometries)
+
+validate_vector(frame)
+simplified = simplify_vector(frame, tolerance=0.0)
+```
+
+## External services worth integrating
+
+### OpenStreetMap
+
+OpenStreetMap is a good source for local vector data and can be queried with OSMnx or the Overpass API.
 
 ```bash
 pip install osmnx
 ```
 
-### Download Buildings
+### Microsoft Planetary Computer
+
+This is a strong choice when you want to explore STAC-based raster and vector collections in a cloud-native workflow.
 
 ```python
-import osmnx as ox
+from pystac_client import Client
 
-buildings = ox.features_from_bbox(
-    north=-33.90,
-    south=-33.95,
-    east=18.50,
-    west=18.35,
-    tags={
-        "building": True
-    }
-)
-
-buildings.head()
+catalog = Client.open("https://planetarycomputer.microsoft.com/api/stac/v1")
 ```
 
-Returns
+## Recommended usage pattern
 
-```
-GeoDataFrame
-```
-
----
-
-### Download Roads
-
-```python
-roads = ox.features_from_bbox(
-    north=-33.90,
-    south=-33.95,
-    east=18.50,
-    west=18.35,
-    tags={
-        "highway": True
-    }
-)
-```
-
----
-
-### Download Schools
-
-```python
-schools = ox.features_from_bbox(
-    north=-33.90,
-    south=-33.95,
-    east=18.50,
-    west=18.35,
-    tags={
-        "amenity": "school"
-    }
-)
-```
-
----
-
-# Option 2 - Overpass API
-
-Useful when you want complete control over your query or don't want another dependency.
-
-Endpoint
-
-```
-https://overpass-api.de/api/interpreter
-```
-
-### Roads
-
-```python
-import requests
-import geopandas as gpd
-
-query = """
-[out:json];
-way
-  ["highway"]
-  (-33.95,18.35,-33.90,18.50);
-out geom;
-"""
-
-response = requests.get(
-    "https://overpass-api.de/api/interpreter",
-    params={
-        "data": query
-    },
-)
-
-response.raise_for_status()
-
-data = response.json()
-```
-
----
-
-### Buildings
-
-```python
-query = """
-[out:json];
-way
-  ["building"]
-  (-33.95,18.35,-33.90,18.50);
-out geom;
-"""
-```
-
----
-
-### Hospitals
-
-```python
-query = """
-[out:json];
-node
-  ["amenity"="hospital"]
-  (-33.95,18.35,-33.90,18.50);
-out;
-"""
-```
-
----
-
-### Restaurants
-
-```python
-query = """
-[out:json];
-node
-  ["amenity"="restaurant"]
-  (-33.95,18.35,-33.90,18.50);
-out;
-"""
-```
-
----
-
-### Administrative Boundaries
-
-```python
-query = """
-[out:json];
-relation
-  ["boundary"="administrative"];
-out geom;
-"""
-```
-
----
-
-## Saving to GeoJSON
-
-```python
-buildings.to_file(
-    "buildings.geojson",
-    driver="GeoJSON"
-)
-```
-
----
-
-# Quick Reference
-
-| Want... | Tag |
-|----------|-----|
-| Buildings | `"building": True` |
-| Roads | `"highway": True` |
-| Schools | `"amenity": "school"` |
-| Hospitals | `"amenity": "hospital"` |
-| Restaurants | `"amenity": "restaurant"` |
-| Parks | `"leisure": "park"` |
-| Water | `"natural": "water"` |
-| Railways | `"railway": True` |
-| Powerlines | `"power": "line"` |
-| Rivers | `"waterway": "river"` |
+1. Start with the local package helpers for validation and inspection.
+2. Use external services when you need additional data sources.
+3. Keep the data in GeoPandas-friendly formats for downstream processing.
