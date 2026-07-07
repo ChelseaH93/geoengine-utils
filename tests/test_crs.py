@@ -5,7 +5,26 @@ from geoengine_utils.crs.recommend import (
     recommend,
 )
 
+def test_recommendation_has_reason():
 
+    result = recommend(
+        country="South Africa"
+    )
+
+    assert result.reason
+    assert result.recommended.code
+
+def test_alternatives_are_scored():
+
+    result = recommend(
+        country="South Africa"
+    )
+
+    for crs in result.alternatives:
+        assert isinstance(
+            crs.score,
+            int
+        )
 
 def test_recommend_geometry():
 

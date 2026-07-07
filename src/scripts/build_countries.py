@@ -5,7 +5,7 @@ import geopandas as gpd
 
 INPUT = Path(r"C:\Users\chels\Downloads\ne_10m_admin_0_countries\ne_10m_admin_0_countries.shp")
 OUTPUT = Path(
-    "src/geoengine_utils/data/countries.parquet"
+    "src/geoengine_utils/crs/data/countries.parquet"
 )
 
 
