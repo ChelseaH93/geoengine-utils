@@ -37,8 +37,8 @@ The goal is to provide production-ready utilities that help engineers build scal
 Clone the repository
 
 ```bash
-git clone https://github.com/<yourusername>/geoforge.git
-cd geoforge
+git clone https://github.com/<yourusername>/geoengine-utils.git
+cd geoengine-utils
 ```
 
 Create a virtual environment
@@ -61,10 +61,11 @@ Linux / macOS
 source .venv/bin/activate
 ```
 
-Install dependencies
+Install dependencies and the package itself
 
 ```bash
 pip install -r requirements-dev.txt
+pip install -e .
 ```
 
 ---
@@ -72,7 +73,7 @@ pip install -r requirements-dev.txt
 ## Quick Start
 
 ```python
-from geoforge import validate_raster
+from geoengine_utils import validate_raster
 
 result = validate_raster("example.tif")
 

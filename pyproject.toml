@@ -5,10 +5,13 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "geoengine-utils"
 version = "0.1.0"
-description = "Utilities for geospatial data workflows"
+description = "Utilities for validating and preparing geospatial data workflows"
 readme = "README.md"
 requires-python = ">=3.8"
 authors = [{ name = "Your Name" }]
+
+[project.scripts]
+geoengine-utils = "geoengine_utils.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
