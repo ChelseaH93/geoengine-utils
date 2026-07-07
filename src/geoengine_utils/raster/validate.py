@@ -38,6 +38,10 @@ def validate_raster(path: str) -> ValidationResult:
     if metadata.nodata is None:
         warnings.append("Raster has no NoData value defined.")
 
+    resolutions = metadata.resolution
+    if resolutions and any(value is not None and value >= 10 for value in resolutions):
+        warnings.append("Raster resolution is relatively coarse for many production workflows.")
+
     passed = len(errors) == 0
 
     return ValidationResult(
