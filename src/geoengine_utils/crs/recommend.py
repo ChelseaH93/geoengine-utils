@@ -1,107 +1,111 @@
-from dataclasses import dataclass
+from pyproj.database import query_crs_info
+from pyproj.enums import PJType
+from pyproj.aoi import AreaOfInterest
 
-from pyproj.database import QueryResultCategory, query_crs_info
+from shapely.geometry.base import BaseGeometry
 
+from .models import CRSInfo
+from .models import CRSRecommendation
 
-@dataclass
-class CRSRecommendation:
-    auth_name: str
-    code: str
-    name: str
-    area_of_use: str
-
-
-@dataclass
-class CRSRecommendations:
-    global_standard: CRSRecommendation | None
-    local_recommendation: CRSRecommendation | None
-    alternatives: list[CRSRecommendation]
-
-
-def _get_bounds(geometry) -> tuple[float, float, float, float]:
-    """
-    Extract bounding coordinates from common geometry types.
-
-    Supports:
-    - shapely geometries
-    - (minx, miny, maxx, maxy) tuples
-    """
-
-    if isinstance(geometry, tuple):
-        return geometry
+def _normalise_bounds(
+    geometry: BaseGeometry | tuple
+) -> tuple[float, float, float, float]:
 
     if hasattr(geometry, "bounds"):
         return geometry.bounds
 
-    raise ValueError(
-        "Geometry must be a bounding tuple or Shapely geometry."
-    )
+    if isinstance(geometry, tuple):
 
+        if len(geometry) != 4:
+            raise ValueError(
+                "Bounds must be "
+                "(minx, miny, maxx, maxy)"
+            )
+
+        return geometry
+
+    raise TypeError(
+        "Expected Shapely geometry or bounds tuple."
+    )
 
 def find_matching_crs(
     geometry,
-) -> list[CRSRecommendation]:
+) -> list[CRSInfo]:
 
-    bounds = _get_bounds(geometry)
-
-    matches = query_crs_info(
-        pj_type=QueryResultCategory.PROJECTED_CRS,
-        area_of_interest=bounds,
-        contained=False,
+    minx, miny, maxx, maxy = _normalise_bounds(
+        geometry
     )
 
-    results = []
+    crs_list = query_crs_info(
+        pj_types=PJType.PROJECTED_CRS,
+        area_of_interest=AreaOfInterest(
+            west_lon_degree=minx,
+            south_lat_degree=miny,
+            east_lon_degree=maxx,
+            north_lat_degree=maxy,
+        ),
+        contains=False,
+    )
+    return [
+        CRSInfo(
+            auth_name=i.auth_name,
+            code=i.code,
+            name=i.name,
+            area_of_use=i.area_of_use.name,
+        )
+        for i in crs_list
+    ]
 
-    for crs in matches:
-        results.append(
-            CRSRecommendation(
-                auth_name=crs.auth_name,
-                code=crs.code,
-                name=crs.name,
-                area_of_use=crs.area_of_use.name
-                if crs.area_of_use
-                else "Unknown",
-            )
+def _score(crs: CRSInfo):
+
+    score = 0
+
+    name = crs.name.lower()
+
+    if "utm" in name:
+        score += 100
+
+    if "wgs 84" in name:
+        score += 20
+
+    if "tm" in name:
+        score += 15
+
+    if "state plane" in name:
+        score += 10
+
+    if "engineering" in name:
+        score += 5
+
+    return score
+
+def recommend_crs(
+    geometry,
+) -> CRSRecommendation:
+
+    matches = find_matching_crs(
+        geometry
+    )
+
+    if not matches:
+
+        raise ValueError(
+            "No projected CRS found."
         )
 
-    return results
+    matches.sort(
+        key=_score,
+        reverse=True,
+    )
 
+    best = matches[0]
 
-def recommend_crs(geometry) -> CRSRecommendations:
-
-    matches = find_matching_crs(geometry)
-
-    utm = []
-    local = []
-    other = []
-
-    for crs in matches:
-
-        name = crs.name.lower()
-
-        if "utm" in name:
-
-            if "wgs 84" in name:
-                utm.insert(0, crs)
-            else:
-                utm.append(crs)
-
-        elif any(
-            keyword in name
-            for keyword in (
-                "state plane",
-                "national",
-                "south africa",
-                "tm",
-            )
-        ):
-            local.append(crs)
-
-        else:
-            other.append(crs)
-
-    return CRSRecommendations(
-        global_standard=utm[0] if utm else None,
-        local_recommendation=local[0] if local else None,
-        alternatives=utm[1:] + local[1:] + other[:5],
+    return CRSRecommendation(
+        recommended=best,
+        alternatives=matches[1:6],
+        reason=(
+            f"{best.auth_name}:{best.code} "
+            "is the highest ranked projected CRS "
+            "covering the supplied extent."
+        ),
     )
