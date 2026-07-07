@@ -90,6 +90,16 @@ ValidationResult(
 )
 ```
 
+### CLI validation
+
+You can also validate a raster from the command line:
+
+```bash
+python -m geoengine_utils.cli validate example.tif
+```
+
+A passing validation returns exit code `0`, while failing validation returns `1` so it can be used in scripts and CI pipelines.
+
 ---
 
 ## Philosophy
