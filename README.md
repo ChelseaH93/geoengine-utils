@@ -112,6 +112,15 @@ print(recommendation.recommended)
 print(recommendation.alternatives[:3])
 ```
 
+For raster data, the same helper works with a raster file path:
+
+```python
+from geoengine_utils import estimate_crs
+
+recommendation = estimate_crs("example.tif")
+print(recommendation.recommended)
+```
+
 For country-specific defaults, the package can also recommend a CRS from a country centroid.
 
 ---
