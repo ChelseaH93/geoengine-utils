@@ -1,1 +1,0 @@
-"""Raster clipping helpers."""
