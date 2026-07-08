@@ -21,13 +21,20 @@ from .crs import (
     transform_geometry,
     validate_crs,
 )
-from .raster import get_raster_metadata, validate_raster
+from .raster import (
+    get_raster_metadata,
+    recommend_resampling,
+    resample_raster,
+    validate_raster,
+)
 
 __all__ = [
     "main",
     "__version__",
     "get_raster_metadata",
     "validate_raster",
+    "recommend_resampling",
+    "resample_raster",
     "find_matching_crs",
     "recommend_crs",
     "estimate_crs",
