@@ -86,6 +86,24 @@ print(result.passed)
 print(result.errors)
 ```
 
+### Shared validation framework
+
+The package now exposes a shared validation layer for both raster and vector workflows. You can build typed datasets and validate them directly or use decorators in ETL-style pipelines.
+
+```python
+from geoengine_utils import RasterDataset, VectorDataset, ValidationReport, validate_dataset
+
+raster = RasterDataset(name="demo", path="demo.tif", crs="EPSG:4326", bounds=(0, 0, 1, 1))
+vector = VectorDataset(name="demo", crs="EPSG:4326", bounds=(0, 0, 1, 1), geometry=None, topology=False)
+
+report = raster.validate()
+print(report.summary())
+
+@validate_dataset(input_schema=VectorDataset, output_schema=VectorDataset)
+def transform(data):
+    return data
+```
+
 ### CLI validation
 
 You can also validate a raster from the command line:

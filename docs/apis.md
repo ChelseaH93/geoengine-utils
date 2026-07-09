@@ -37,6 +37,22 @@ validate_vector(frame)
 simplified = simplify_vector(frame, tolerance=0.0)
 ```
 
+### Shared validation API
+
+```python
+from geoengine_utils import RasterDataset, VectorDataset, ValidationReport, validate_dataset
+
+raster = RasterDataset(name="demo", path="demo.tif", crs="EPSG:4326", bounds=(0, 0, 1, 1))
+vector = VectorDataset(name="demo", crs="EPSG:4326", bounds=(0, 0, 1, 1), geometry=None, topology=False)
+
+print(raster.validate().summary())
+print(vector.validate().format_report())
+
+@validate_dataset(input_schema=VectorDataset, output_schema=VectorDataset)
+def transform(data):
+    return data
+```
+
 ## External services worth integrating
 
 ### OpenStreetMap
