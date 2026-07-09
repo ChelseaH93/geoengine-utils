@@ -18,7 +18,7 @@ from .registry import PREFERRED_CRS
 
 
 def normalise_bounds(
-    geometry: BaseGeometry | tuple[float, float, float, float]
+    geometry: BaseGeometry | tuple[float, float, float, float],
 ) -> tuple[float, float, float, float]:
     """Normalise a geometry or bounds tuple into a 4-tuple."""
 
@@ -163,9 +163,7 @@ def utm_epsg(lon: float, lat: float) -> int:
     return 32600 + zone if lat >= 0 else 32700 + zone
 
 
-def recommend_crs(
-    geometry: BaseGeometry | tuple[float, float, float, float]
-) -> CRSRecommendation:
+def recommend_crs(geometry: BaseGeometry | tuple[float, float, float, float]) -> CRSRecommendation:
     """Recommend a projected CRS for a geometry based on its extent."""
 
     bounds = normalise_bounds(geometry)
@@ -194,10 +192,7 @@ def recommend_crs(
     crs = CRS.from_epsg(epsg)
 
     alternatives = sorted(
-        [
-            crs_to_info(item, score=score_crs(item, lon=lon, lat=lat))
-            for item in matches
-        ],
+        [crs_to_info(item, score=score_crs(item, lon=lon, lat=lat)) for item in matches],
         key=lambda item: item.score,
         reverse=True,
     )
@@ -247,9 +242,7 @@ def estimate_crs(data: Any) -> CRSRecommendation:
     return recommend_crs(data)
 
 
-def find_matching_crs(
-    geometry: BaseGeometry | tuple[float, float, float, float]
-) -> list[Any]:
+def find_matching_crs(geometry: BaseGeometry | tuple[float, float, float, float]) -> list[Any]:
     """Backwards compatible wrapper for CRS matching."""
 
     bounds = normalise_bounds(geometry)
@@ -270,14 +263,14 @@ def recommend(
         )
 
         candidates = [
-            candidate
-            for candidate in candidates
-            if candidate.code.startswith(("326", "327"))
+            candidate for candidate in candidates if candidate.code.startswith(("326", "327"))
         ]
 
         ranked = sorted(
             candidates,
-            key=lambda candidate: score_crs(candidate, lon=centroid["longitude"], lat=centroid["latitude"]),
+            key=lambda candidate: score_crs(
+                candidate, lon=centroid["longitude"], lat=centroid["latitude"]
+            ),
             reverse=True,
         )
         recommended = CRS.from_epsg(centroid["utm_epsg"])

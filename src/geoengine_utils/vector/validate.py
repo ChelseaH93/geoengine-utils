@@ -6,24 +6,30 @@ from typing import Any
 
 import geopandas as gpd
 
+from ..validation import VectorDataset
+
 
 def validate_vector(data: Any) -> bool:
     """Validate that the supplied object can be treated as vector data.
 
-    Parameters
-    ----------
-    data : Any
-        Vector data payload to validate.
-
-    Returns
-    -------
-    bool
-        ``True`` when the object can be represented as a GeoDataFrame-like
-        geometry collection, otherwise ``False``.
+    This remains a compatibility wrapper around the shared validation framework
+    used across the package for geospatial datasets.
     """
 
     if isinstance(data, gpd.GeoDataFrame):
-        return "geometry" in data.columns and len(data) > 0
+        if "geometry" not in data.columns or len(data) == 0:
+            return False
+
+        crs = data.crs.to_string() if data.crs is not None else None
+        bounds = tuple(data.total_bounds) if len(data) > 0 else None
+        dataset = VectorDataset(
+            name="vector-data",
+            crs=crs,
+            bounds=bounds,
+            geometry=data,
+            topology=True,
+        )
+        return dataset.validate().passed
 
     if isinstance(data, gpd.GeoSeries):
         return len(data) > 0

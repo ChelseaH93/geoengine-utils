@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import rasterio
 from rasterio.enums import Resampling
@@ -62,15 +61,12 @@ def recommend_resampling(
         scale_y = target_height / height
 
         if scale_x > 1.0 or scale_y > 1.0:
-            resampling = "upsampling"
             strategy = "cubic"
             reason = "The target dimensions are larger than the source raster, so cubic resampling is a good default for smooth upsampling."
         elif scale_x < 1.0 or scale_y < 1.0:
-            resampling = "downsampling"
             strategy = "average"
             reason = "The target dimensions are smaller than the source raster, so average resampling is a good default for reducing aliasing."
         else:
-            resampling = "no-change"
             strategy = "nearest"
             reason = "The target dimensions match the source raster, so no resampling is required."
 
@@ -119,7 +115,9 @@ def resample_raster(
     output = Path(output_path)
 
     with rasterio.open(raster_path) as src:
-        data = src.read(out_shape=(src.count, recommendation.target_height, recommendation.target_width))
+        data = src.read(
+            out_shape=(src.count, recommendation.target_height, recommendation.target_width)
+        )
         profile = src.profile.copy()
         profile.update(
             width=recommendation.target_width,

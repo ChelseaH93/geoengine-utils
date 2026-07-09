@@ -70,9 +70,7 @@ def main(args: Sequence[str] | None = None, *, stdout: Any | None = None) -> int
 
     if parsed_args.command == "estimate-crs":
         recommendation = estimate_crs(parsed_args.path)
-        output = (
-            f"recommended_crs={recommendation.recommended.auth_name}:{recommendation.recommended.code}"
-        )
+        output = f"recommended_crs={recommendation.recommended.auth_name}:{recommendation.recommended.code}"
         if stdout is None:
             print(output)
         else:

@@ -52,6 +52,23 @@ print(validate_vector(frame))
 simplified = simplify_vector(frame, tolerance=0.0)
 ```
 
+### Shared validation workflow
+
+For ETL-style pipelines, the package exposes a shared validation framework that can validate raster and vector datasets with the same reporting model.
+
+```python
+from geoengine_utils import RasterDataset, VectorDataset, validate_dataset
+
+raster = RasterDataset(name="demo", path="demo.tif", crs="EPSG:4326", bounds=(0, 0, 1, 1))
+vector = VectorDataset(name="demo", crs="EPSG:4326", bounds=(0, 0, 1, 1), geometry=None, topology=False)
+
+print(raster.validate().summary())
+
+@validate_dataset(input_schema=VectorDataset, output_schema=VectorDataset)
+def transform(data):
+    return data
+```
+
 ## Recommended workflow
 
 1. Inspect the input dataset with the relevant metadata helpers.

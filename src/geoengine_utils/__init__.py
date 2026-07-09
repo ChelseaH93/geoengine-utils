@@ -5,15 +5,6 @@ Production-ready utilities for geospatial data engineering.
 
 __version__ = "0.1.0"
 
-
-def main(*args, **kwargs):
-    """Run the CLI entry point for the package."""
-
-    from .cli import main as cli_main
-
-    return cli_main(*args, **kwargs)
-
-
 from .crs import (
     estimate_crs,
     find_matching_crs,
@@ -27,6 +18,24 @@ from .raster import (
     resample_raster,
     validate_raster,
 )
+from .validation import (
+    DatasetSchema,
+    RasterDataset,
+    ValidationError,
+    ValidationIssue,
+    ValidationReport,
+    VectorDataset,
+    validate_dataset,
+)
+
+
+def main(*args, **kwargs):
+    """Run the CLI entry point for the package."""
+
+    from .cli import main as cli_main
+
+    return cli_main(*args, **kwargs)
+
 
 __all__ = [
     "main",
@@ -40,4 +49,11 @@ __all__ = [
     "estimate_crs",
     "transform_geometry",
     "validate_crs",
+    "DatasetSchema",
+    "RasterDataset",
+    "VectorDataset",
+    "ValidationIssue",
+    "ValidationReport",
+    "ValidationError",
+    "validate_dataset",
 ]
