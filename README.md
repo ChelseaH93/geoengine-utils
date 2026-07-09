@@ -18,6 +18,8 @@ The goal is to provide production-ready utilities that help engineers build scal
 - Validate CRS definitions and recommend CRS choices for country or geometry-based workflows
 - Production-ready validation reports
 - Vector validation helpers
+- Typed validation schemas for raster and vector datasets
+- Decorator-based validation for ETL pipelines
 - Command Line Interface for raster validation
 
 ### Planned
