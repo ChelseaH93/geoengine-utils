@@ -11,11 +11,7 @@ COUNTRY_UTM: dict[str, int] = {
     "south africa": 32734,
 }
 
-DATA_PATH = (
-    Path(__file__).parent
-    / "data"
-    / "countries.parquet"
-)
+DATA_PATH = Path(__file__).parent / "data" / "countries.parquet"
 
 FALLBACK_COUNTRIES = [
     {"ADMIN": "South Africa", "geometry": Point(24.6799, -28.4793)},
@@ -109,9 +105,7 @@ def get_country(country_name: str) -> Any:
 
     name = country_name.strip().lower()
 
-    match = countries[
-        countries["ADMIN"].str.lower().str.strip() == name
-    ]
+    match = countries[countries["ADMIN"].str.lower().str.strip() == name]
 
     if match.empty:
         raise ValueError(f"Country '{country_name}' not found")

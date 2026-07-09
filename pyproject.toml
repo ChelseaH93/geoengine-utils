@@ -13,6 +13,23 @@ authors = [{ name = "Your Name" }]
 [project.scripts]
 geoengine-utils = "geoengine_utils.cli:main"
 
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.6.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 

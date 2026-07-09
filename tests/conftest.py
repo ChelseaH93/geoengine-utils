@@ -3,7 +3,6 @@ from pathlib import Path
 import pytest
 from shapely.geometry import box
 
-
 TEST_DATA = Path(__file__).parent / "data"
 
 
@@ -20,6 +19,7 @@ def cape_town_bbox():
         18.7,
         -33.8,
     )
+
 
 @pytest.fixture
 def london_bbox():

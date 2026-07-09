@@ -40,7 +40,9 @@ def test_validate_dataset_decorator_rejects_invalid_payloads():
     def transform(data):
         return data
 
-    invalid_dataset = VectorDataset(name="bad", crs=None, bounds=None, geometry=None, topology=False)
+    invalid_dataset = VectorDataset(
+        name="bad", crs=None, bounds=None, geometry=None, topology=False
+    )
 
     with pytest.raises(ValidationError) as excinfo:
         transform(invalid_dataset)

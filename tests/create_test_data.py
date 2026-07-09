@@ -1,19 +1,13 @@
 from pathlib import Path
-from shapely.geometry import box
 
 import numpy as np
 import rasterio
 from rasterio.transform import from_origin
+from shapely.geometry import box
 
-output = (
-    Path(__file__).parent
-    / "data"
-    / "test_dem.tif"
-)
+output = Path(__file__).parent / "data" / "test_dem.tif"
 
-output.parent.mkdir(
-    exist_ok=True
-)
+output.parent.mkdir(exist_ok=True)
 
 array = np.random.rand(10, 10).astype("float32")
 
@@ -35,10 +29,10 @@ with rasterio.open(
     crs="EPSG:4326",
     transform=transform,
 ) as dst:
-
     dst.write(array, 1)
 
 print("Created:", output)
+
 
 def south_africa_bbox():
 

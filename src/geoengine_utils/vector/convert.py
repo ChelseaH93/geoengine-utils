@@ -32,4 +32,6 @@ def convert_vector(data: Any) -> gpd.GeoDataFrame:
         if geometries and all(hasattr(item, "geom_type") for item in geometries):
             return gpd.GeoDataFrame(geometry=geometries)
 
-    raise TypeError("Unsupported vector input. Provide a GeoDataFrame, GeoSeries, or iterable of geometries.")
+    raise TypeError(
+        "Unsupported vector input. Provide a GeoDataFrame, GeoSeries, or iterable of geometries."
+    )
