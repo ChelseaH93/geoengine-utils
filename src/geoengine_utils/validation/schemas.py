@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from functools import wraps
 from typing import Any, Callable, Optional, Type, TypeVar
 
+from ..crs import validate_crs
 from .report import ValidationError, ValidationReport
 
 
@@ -21,6 +22,8 @@ class DatasetSchema:
         report = ValidationReport()
         if not self.crs:
             report.add_error("CRS is missing or invalid.")
+        elif not validate_crs(self.crs):
+            report.add_error(f"CRS '{self.crs}' could not be parsed by PROJ.")
         if not self.bounds:
             report.add_error("Bounds are missing.")
         return report

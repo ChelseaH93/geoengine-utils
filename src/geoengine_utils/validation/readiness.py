@@ -133,6 +133,7 @@ def _assess_vector(data: Any) -> ValidationReport:
 
     crs = data.crs.to_string() if data.crs is not None else None
     valid_mask = data.geometry.is_valid
+    empty_mask = data.geometry.is_empty
     topology = bool(valid_mask.all())
 
     dataset = VectorDataset(
@@ -144,10 +145,25 @@ def _assess_vector(data: Any) -> ValidationReport:
     )
     report.issues.extend(dataset.validate().issues)
 
-    if not topology:
-        invalid_count = int((~valid_mask).sum())
+    if empty_mask.any():
+        empty_count = int(empty_mask.sum())
+        report.add_error(
+            f"{empty_count} of {len(data)} geometries are empty and contain no shape."
+        )
+
+    non_empty_invalid = valid_mask.eq(False) & ~empty_mask
+    if non_empty_invalid.any():
+        invalid_count = int(non_empty_invalid.sum())
         report.add_warning(
             f"{invalid_count} of {len(data)} geometries are invalid or self-intersecting."
+        )
+
+    geometry_types = data.geometry[~empty_mask].geom_type.unique()
+    if len(geometry_types) > 1:
+        type_list = ", ".join(sorted(geometry_types))
+        report.add_warning(
+            f"Dataset mixes multiple geometry types ({type_list}); "
+            "many downstream tools expect a single geometry type per layer."
         )
 
     return report

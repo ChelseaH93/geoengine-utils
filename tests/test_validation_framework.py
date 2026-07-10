@@ -35,6 +35,17 @@ def test_raster_dataset_validation_reports_crs_and_bounds():
     assert any("bounds" in issue.message.lower() for issue in report.issues)
 
 
+def test_raster_dataset_validation_rejects_unparseable_crs():
+    dataset = RasterDataset(
+        name="demo", path="demo.tif", crs="not-a-real-crs", bounds=(0, 0, 1, 1)
+    )
+
+    report = dataset.validate()
+
+    assert report.passed is False
+    assert any("could not be parsed" in issue.message.lower() for issue in report.issues)
+
+
 def test_validate_dataset_decorator_rejects_invalid_payloads():
     @validate_dataset(input_schema=VectorDataset, output_schema=VectorDataset)
     def transform(data):
