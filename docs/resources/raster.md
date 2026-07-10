@@ -25,19 +25,19 @@ The metadata object includes the core information most pipelines need before the
 - bounds
 - NoData value
 
-## Validating raster data
+## Assessing raster readiness
 
 ```python
-from geoengine_utils import validate_raster
+from geoengine_utils import assess_readiness
 
-report = validate_raster("example.tif")
+report = assess_readiness("example.tif")
 
 print(report.passed)
 print(report.errors)
 print(report.warnings)
 ```
 
-Validation is intentionally lightweight and aimed at catching common issues such as:
+`assess_readiness` takes just the raster path — it opens the file, extracts CRS/bounds/band metadata itself, and checks for common issues such as:
 
 - missing CRS definitions
 - invalid dimensions

@@ -76,19 +76,31 @@ pip install -e .
 ## Quick Start
 
 ```python
-from geoengine_utils import get_raster_metadata, validate_raster
+from geoengine_utils import assess_readiness, get_raster_metadata
 
 metadata = get_raster_metadata("example.tif")
-result = validate_raster("example.tif")
+result = assess_readiness("example.tif")
 
 print(metadata)
 print(result.passed)
 print(result.errors)
 ```
 
-### Shared validation framework
+### Readiness assessment
 
-The package now exposes a shared validation layer for both raster and vector workflows. You can build typed datasets and validate them directly or use decorators in ETL-style pipelines.
+`assess_readiness` is the single entry point for checking whether a dataset is ready for production use. Hand it a raster path, vector path, GeoDataFrame/GeoSeries, or an iterable of geometries and it detects the dataset type and infers everything it needs (CRS, bounds, geometry validity, band/feature counts) automatically — no manual schema building required.
+
+```python
+from geoengine_utils import assess_readiness
+
+raster_report = assess_readiness("demo.tif")
+vector_report = assess_readiness("demo.geojson")
+
+print(raster_report.summary())
+print(vector_report.format_report())
+```
+
+For ETL-style pipelines that want to validate function inputs/outputs against a typed schema explicitly, the lower-level `RasterDataset`/`VectorDataset` classes and `validate_dataset` decorator remain available.
 
 ```python
 from geoengine_utils import RasterDataset, VectorDataset, ValidationReport, validate_dataset

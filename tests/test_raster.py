@@ -1,8 +1,8 @@
 from geoengine_utils import (
+    assess_readiness,
     get_raster_metadata,
     recommend_resampling,
     resample_raster,
-    validate_raster,
 )
 
 
@@ -17,7 +17,7 @@ def test_metadata(raster_path):
 
 def test_validate_raster(raster_path):
 
-    report = validate_raster(raster_path)
+    report = assess_readiness(raster_path)
 
     assert report is not None
 

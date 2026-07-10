@@ -12,7 +12,7 @@ from pyproj.database import query_crs_info
 from pyproj.enums import PJType
 from shapely.geometry.base import BaseGeometry
 
-from .country_lookup import get_country_centroid
+from .country_lookup import get_country_centroid, utm_epsg_for
 from .models import CRSInfo, CRSRecommendation
 from .registry import PREFERRED_CRS
 
@@ -159,8 +159,7 @@ def score_crs(crs: Any, lon: float | None = None, lat: float | None = None) -> i
 def utm_epsg(lon: float, lat: float) -> int:
     """Derive a UTM EPSG code from longitude and latitude."""
 
-    zone = int((lon + 180) / 6) + 1
-    return 32600 + zone if lat >= 0 else 32700 + zone
+    return utm_epsg_for(lon, lat)
 
 
 def recommend_crs(geometry: BaseGeometry | tuple[float, float, float, float]) -> CRSRecommendation:

@@ -17,16 +17,17 @@ print(type(frame))
 print(frame.geometry)
 ```
 
-## Validating vector inputs
+## Checking readiness
 
 ```python
-from geoengine_utils.vector import validate_vector
+from geoengine_utils import assess_readiness
 
-valid = validate_vector(frame)
-print(valid)
+report = assess_readiness(frame)
+print(report.passed)
+print(report.format_report())
 ```
 
-The validator returns `True` for objects that can be treated as meaningful vector data, such as a GeoDataFrame or a collection of geometry objects.
+`assess_readiness` auto-detects the dataset type — a GeoDataFrame, GeoSeries, or an iterable of geometry objects all work — and reports errors and warnings (missing CRS, empty features, invalid/self-intersecting geometries, and so on) without you needing to supply that metadata yourself.
 
 ## Simplifying geometries
 

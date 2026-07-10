@@ -4,13 +4,13 @@ This page collects the most relevant package entry points and a few external geo
 
 ## geoengine-utils package APIs
 
-### Raster inspection and validation
+### Raster inspection and readiness
 
 ```python
-from geoengine_utils import get_raster_metadata, validate_raster
+from geoengine_utils import assess_readiness, get_raster_metadata
 
 metadata = get_raster_metadata("example.tif")
-report = validate_raster("example.tif")
+report = assess_readiness("example.tif")
 ```
 
 ### CRS helpers
@@ -25,7 +25,8 @@ recommend_crs(latitude=-33.9, longitude=18.4)
 ### Vector helpers
 
 ```python
-from geoengine_utils.vector import convert_vector, simplify_vector, validate_vector
+from geoengine_utils import assess_readiness
+from geoengine_utils.vector import convert_vector, simplify_vector
 
 import geopandas as gpd
 from shapely.geometry import Point
@@ -33,11 +34,22 @@ from shapely.geometry import Point
 geometries = [Point(0, 0), Point(1, 1)]
 frame = convert_vector(geometries)
 
-validate_vector(frame)
+assess_readiness(frame)
 simplified = simplify_vector(frame, tolerance=0.0)
 ```
 
-### Shared validation API
+### Readiness assessment
+
+`assess_readiness` is the single entry point for checking whether a raster or vector dataset is ready for production use. It accepts a file path, a GeoDataFrame/GeoSeries, or an iterable of geometries and infers the dataset type and metadata it needs automatically.
+
+```python
+from geoengine_utils import assess_readiness
+
+print(assess_readiness("demo.tif").summary())
+print(assess_readiness("demo.geojson").format_report())
+```
+
+For ETL-style pipelines that want to validate function inputs/outputs against a typed schema explicitly, the lower-level schema classes and decorator remain available.
 
 ```python
 from geoengine_utils import RasterDataset, VectorDataset, ValidationReport, validate_dataset

@@ -30,6 +30,27 @@ COUNTRY_METADATA = {
 }
 
 
+def utm_epsg_for(longitude: float, latitude: float, country_key: str | None = None) -> int:
+    """Derive a UTM EPSG code for a location, preferring a known country override.
+
+    Parameters
+    ----------
+    longitude : float
+        Longitude of the location in decimal degrees.
+    latitude : float
+        Latitude of the location in decimal degrees.
+    country_key : str | None, optional
+        Lowercased country name used to look up an explicit UTM override in
+        ``COUNTRY_UTM`` before falling back to the standard zone calculation.
+    """
+
+    if country_key is not None and country_key in COUNTRY_UTM:
+        return COUNTRY_UTM[country_key]
+
+    zone = int((longitude + 180) / 6) + 1
+    return 32600 + zone if latitude >= 0 else 32700 + zone
+
+
 def _build_country_frame(records: list[dict[str, Any]]) -> gpd.GeoDataFrame:
     """Create a country GeoDataFrame with the expected metadata columns."""
 
@@ -42,11 +63,7 @@ def _build_country_frame(records: list[dict[str, Any]]) -> gpd.GeoDataFrame:
         longitude = float(centroid.x)
         latitude = float(centroid.y)
 
-        if country_key in COUNTRY_UTM:
-            utm_epsg = COUNTRY_UTM[country_key]
-        else:
-            zone = int((longitude + 180) / 6) + 1
-            utm_epsg = 32600 + zone if latitude >= 0 else 32700 + zone
+        utm_epsg = utm_epsg_for(longitude, latitude, country_key)
 
         metadata = COUNTRY_METADATA.get(country_key, {})
         rows.append(
@@ -124,12 +141,7 @@ def get_country_centroid(name: str) -> dict[str, float | int]:
     latitude = float(point.y)
 
     country_key = name.strip().lower()
-
-    if country_key in COUNTRY_UTM:
-        utm_epsg = COUNTRY_UTM[country_key]
-    else:
-        zone = int((longitude + 180) / 6) + 1
-        utm_epsg = 32600 + zone if latitude >= 0 else 32700 + zone
+    utm_epsg = utm_epsg_for(longitude, latitude, country_key)
 
     return {
         "latitude": latitude,

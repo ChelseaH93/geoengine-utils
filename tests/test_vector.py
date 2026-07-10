@@ -1,7 +1,8 @@
 import geopandas as gpd
-from shapely.geometry import Point
+from shapely.geometry import Point, Polygon
 
-from geoengine_utils.vector import convert_vector, simplify_vector, validate_vector
+from geoengine_utils.validation import assess_readiness
+from geoengine_utils.vector import convert_vector, simplify_vector
 
 
 def test_convert_vector_from_geometries():
@@ -14,7 +15,40 @@ def test_convert_vector_from_geometries():
 
 
 def test_validate_vector_rejects_non_geometric_input():
-    assert validate_vector(["not", "valid"]) is False
+    report = assess_readiness(["not", "valid"])
+
+    assert report.passed is False
+
+
+def test_assess_readiness_accepts_a_geodataframe_directly():
+    frame = gpd.GeoDataFrame(
+        {"name": ["a"]},
+        geometry=[Point(0, 0)],
+        crs="EPSG:4326",
+    )
+
+    report = assess_readiness(frame)
+
+    assert report.passed is True
+
+
+def test_assess_readiness_flags_invalid_geometries_as_a_warning():
+    bowtie = Polygon([(0, 0), (1, 1), (1, 0), (0, 1), (0, 0)])
+    frame = gpd.GeoDataFrame(geometry=[bowtie], crs="EPSG:4326")
+
+    report = assess_readiness(frame)
+
+    assert any("invalid" in warning.lower() for warning in report.warnings)
+
+
+def test_assess_readiness_auto_detects_a_vector_file(tmp_path):
+    frame = gpd.GeoDataFrame(geometry=[Point(0, 0)], crs="EPSG:4326")
+    path = tmp_path / "points.geojson"
+    frame.to_file(path, driver="GeoJSON")
+
+    report = assess_readiness(path)
+
+    assert report.passed is True
 
 
 def test_simplify_vector_returns_a_new_geodataframe():
