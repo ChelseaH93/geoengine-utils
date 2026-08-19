@@ -177,8 +177,10 @@ convert_vector_to_pmtiles(
 
 The converter reprojects to Web Mercator for tiling, encodes gzip-compressed
 Mapbox Vector Tiles, and writes a PMTiles v3 archive. GeoParquet inputs are
-read as PyArrow batches. Geometries are spatially indexed, clipped to tile
-bounds, and simplified according to zoom before encoding.
+validated and read as PyArrow batches. Geometries are spatially indexed,
+clipped to tile bounds, and simplified according to zoom before encoding.
+Tile features are staged in a temporary disk-backed SQLite store, so the
+conversion does not retain the full source or all output features in memory.
 
 For large Parquet or GeoParquet inputs, PyArrow record batches are also
 available when building a custom conversion pipeline:

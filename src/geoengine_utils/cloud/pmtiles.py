@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import json
+import sqlite3
 from collections import defaultdict
+from contextlib import closing
 from os import PathLike
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any, Iterator, Sequence
 
 import geopandas as gpd
@@ -14,7 +18,7 @@ from shapely.geometry import box
 from ..validation import ValidationReport, assess_readiness
 
 
-def assess_pmtiles_input(source: Any) -> ValidationReport:
+def assess_pmtiles_input(source: Any, *, batch_size: int = 10_000) -> ValidationReport:
 	"""Run data quality checks before converting a vector dataset to PMTiles.
 
 	The checks cover readability, feature presence, CRS presence, empty and
@@ -24,21 +28,25 @@ def assess_pmtiles_input(source: Any) -> ValidationReport:
 	as part of their conversion pipeline.
 	"""
 
-	report = assess_readiness(source)
+	report = assess_readiness(source, batch_size=batch_size)
 	if not report.passed:
 		return report
 
-	data = _read_vector_source(source)
-	if data.crs is None:
+	if _is_parquet_source(source):
+		crs, bounds = _stream_parquet_summary(source, batch_size=batch_size)
+	else:
+		data = _read_vector_source(source)
+		crs, bounds = data.crs, data.total_bounds
+
+	if crs is None:
 		report.add_error("PMTiles input must have a CRS defined.")
 	else:
-		crs = CRS.from_user_input(data.crs)
-		if not crs.is_geographic:
+		parsed_crs = CRS.from_user_input(crs)
+		if not parsed_crs.is_geographic:
 			report.add_warning(
 				"PMTiles input uses a projected CRS; reproject to EPSG:4326 before tiling."
 			)
 
-	bounds = data.total_bounds
 	if len(bounds) != 4 or not all(_is_finite(value) for value in bounds):
 		report.add_error("PMTiles input has non-finite or unavailable bounds.")
 
@@ -101,31 +109,21 @@ def convert_vector_to_pmtiles(
 	if simplify_factor < 0:
 		raise ValueError("simplify_factor must be greater than or equal to zero")
 
-	report = assess_pmtiles_input(source)
+	report = assess_pmtiles_input(source, batch_size=batch_size)
 	if not report.passed:
 		raise ValueError(f"PMTiles preflight failed: {report.format_report()}")
 
-	frame = _read_vector_source(source)
-	if frame.crs is None:
-		raise ValueError("PMTiles input must have a CRS defined")
-	frame = frame.to_crs("EPSG:4326")
-	bounds = tuple(float(value) for value in frame.total_bounds)
-	tile_features: dict[int, list[dict[str, Any]]] = defaultdict(list)
-
-	for batch in _iter_vector_frames(source, frame, batch_size=batch_size):
-		_encode_batch_tiles(
-			batch.to_crs("EPSG:3857"),
-			tile_features,
-			layer_name=layer_name,
-			min_zoom=min_zoom,
-			max_zoom=max_zoom,
-			clip=clip,
-			simplify=simplify,
-			simplify_factor=simplify_factor,
-		)
-
 	from pmtiles.tile import Compression, TileType, tileid_to_zxy
 	from pmtiles.writer import Writer
+
+	if _is_parquet_source(source):
+		crs, bounds = _stream_parquet_summary(source, batch_size=batch_size)
+		frame = None
+	else:
+		frame = _read_vector_source(source)
+		crs, bounds = frame.crs, frame.total_bounds
+	if crs is None:
+		raise ValueError("PMTiles input must have a CRS defined")
 
 	output_path = Path(output)
 	header = {
@@ -145,26 +143,71 @@ def convert_vector_to_pmtiles(
 		"version": "1.0",
 		"vector_layers": [{"id": layer_name, "fields": {}}],
 	}
-	with output_path.open("wb") as handle:
-		writer = Writer(handle)
-		for tileid, features in sorted(tile_features.items()):
-			zoom, tile_x, tile_y = tileid_to_zxy(tileid)
-			payload = _encode_tile(
-				features,
-				layer_name=layer_name,
-				zoom=zoom,
-				tile_x=tile_x,
-				tile_y=tile_y,
+	with TemporaryDirectory() as temporary_directory:
+		store_path = Path(temporary_directory) / "tile_features.sqlite"
+		with closing(sqlite3.connect(store_path)) as tile_store:
+			tile_store.execute(
+				"CREATE TABLE tile_features (tile_id INTEGER, feature_json TEXT)"
 			)
-			writer.write_tile(tileid, payload)
-		writer.finalize(header, metadata)
+			tile_store.execute("CREATE INDEX tile_features_tile_id ON tile_features(tile_id)")
+
+			for batch in _iter_vector_frames(source, frame, batch_size=batch_size):
+				_encode_batch_tiles(
+					batch.to_crs("EPSG:3857"),
+					tile_store,
+					layer_name=layer_name,
+					min_zoom=min_zoom,
+					max_zoom=max_zoom,
+					clip=clip,
+					simplify=simplify,
+					simplify_factor=simplify_factor,
+				)
+			tile_store.commit()
+
+			with output_path.open("wb") as handle:
+				writer = Writer(handle)
+				tile_rows = tile_store.execute(
+					"SELECT tile_id, feature_json FROM tile_features ORDER BY tile_id"
+				)
+				current_tile_id = None
+				features = []
+				for tile_id, feature_json in tile_rows:
+					if current_tile_id is not None and tile_id != current_tile_id:
+						zoom, tile_x, tile_y = tileid_to_zxy(current_tile_id)
+						writer.write_tile(
+							current_tile_id,
+							_encode_tile(
+								features,
+								layer_name=layer_name,
+								zoom=zoom,
+								tile_x=tile_x,
+								tile_y=tile_y,
+							),
+						)
+						features = []
+					current_tile_id = tile_id
+					features.append(json.loads(feature_json))
+				if current_tile_id is not None:
+					zoom, tile_x, tile_y = tileid_to_zxy(current_tile_id)
+					writer.write_tile(
+						current_tile_id,
+						_encode_tile(
+							features,
+							layer_name=layer_name,
+							zoom=zoom,
+							tile_x=tile_x,
+							tile_y=tile_y,
+						),
+					)
+				tile_rows.close()
+				writer.finalize(header, metadata)
 
 	return output_path
 
 
 def _encode_batch_tiles(
 	frame: gpd.GeoDataFrame,
-	tile_features: dict[int, list[dict[str, Any]]],
+	tile_store: sqlite3.Connection,
 	*,
 	layer_name: str,
 	min_zoom: int,
@@ -176,6 +219,7 @@ def _encode_batch_tiles(
 	from pmtiles.tile import zxy_to_tileid
 
 	for zoom in range(min_zoom, max_zoom + 1):
+		grouped: dict[int, list[dict[str, Any]]] = defaultdict(list)
 		min_lon, min_lat, max_lon, max_lat = _mercator_to_lonlat_bounds(frame.total_bounds)
 		min_tile_x = _lon_to_tile(min_lon, zoom)
 		max_tile_x = _lon_to_tile(max_lon, zoom)
@@ -216,7 +260,13 @@ def _encode_batch_tiles(
 					)
 
 				if features:
-					tile_features[zxy_to_tileid(zoom, tile_x, tile_y)].extend(features)
+					grouped[zxy_to_tileid(zoom, tile_x, tile_y)].extend(features)
+
+		for tile_id, features in grouped.items():
+			tile_store.executemany(
+				"INSERT INTO tile_features(tile_id, feature_json) VALUES (?, ?)",
+				[(tile_id, json.dumps(feature, default=str)) for feature in features],
+			)
 
 
 def _encode_tile(
@@ -312,16 +362,42 @@ def _iter_vector_frames(
 	*,
 	batch_size: int,
 ) -> Iterator[gpd.GeoDataFrame]:
-	if isinstance(source, (str, PathLike)) and Path(source).suffix.lower() in {
-		".parquet",
-		".geoparquet",
-	}:
+	if _is_parquet_source(source):
 		for batch in iter_pyarrow_batches(source, batch_size=batch_size):
 			yield gpd.GeoDataFrame.from_arrow(batch)
 		return
 
 	for start in range(0, len(frame), batch_size):
 		yield frame.iloc[start : start + batch_size]
+
+
+def _is_parquet_source(source: Any) -> bool:
+	return isinstance(source, (str, PathLike)) and Path(source).suffix.lower() in {
+		".parquet",
+		".geoparquet",
+	}
+
+
+def _stream_parquet_summary(
+	source: str | PathLike[str],
+	*,
+	batch_size: int,
+) -> tuple[Any, tuple[float, float, float, float]]:
+	crs = None
+	minimum_x = minimum_y = float("inf")
+	maximum_x = maximum_y = float("-inf")
+
+	for batch in iter_pyarrow_batches(source, batch_size=batch_size):
+		frame = gpd.GeoDataFrame.from_arrow(batch)
+		if crs is None:
+			crs = frame.crs
+		minx, miny, maxx, maxy = frame.total_bounds
+		minimum_x = min(minimum_x, minx)
+		minimum_y = min(minimum_y, miny)
+		maximum_x = max(maximum_x, maxx)
+		maximum_y = max(maximum_y, maxy)
+
+	return crs, (minimum_x, minimum_y, maximum_x, maximum_y)
 
 
 def _is_finite(value: Any) -> bool:

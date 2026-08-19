@@ -13,6 +13,7 @@ from geoengine_utils.cloud import (
     convert_vector_to_pmtiles,
     iter_pyarrow_batches,
 )
+from geoengine_utils.validation import assess_readiness
 
 
 def test_assess_pmtiles_input_accepts_valid_geographic_data():
@@ -60,6 +61,29 @@ def test_iter_pyarrow_batches_streams_bounded_record_batches(tmp_path):
 def test_iter_pyarrow_batches_rejects_invalid_batch_size(tmp_path):
     with pytest.raises(ValueError, match="batch_size"):
         next(iter_pyarrow_batches(tmp_path / "data.parquet", batch_size=0))
+
+
+def test_parquet_readiness_validates_from_arrow_batches(tmp_path, monkeypatch):
+    path = tmp_path / "source.parquet"
+    output = tmp_path / "output.pmtiles"
+    frame = gpd.GeoDataFrame(
+        geometry=[Point(0, 0), Point(1, 1)],
+        crs="EPSG:4326",
+    )
+    frame.to_parquet(path)
+
+    def fail_full_read(_path):
+        raise AssertionError("streamed validation should not call read_parquet")
+
+    monkeypatch.setattr(gpd, "read_parquet", fail_full_read)
+
+    report = assess_readiness(path, batch_size=1)
+    pmtiles_report = assess_pmtiles_input(path, batch_size=1)
+    convert_vector_to_pmtiles(path, output, min_zoom=0, max_zoom=0, batch_size=1)
+
+    assert report.passed is True
+    assert pmtiles_report.passed is True
+    assert output.exists()
 
 
 def test_convert_vector_to_pmtiles_writes_readable_archive(tmp_path):

@@ -22,7 +22,7 @@ from .report import ValidationReport
 from .schemas import RasterDataset, VectorDataset
 
 
-def assess_readiness(source: Any) -> ValidationReport:
+def assess_readiness(source: Any, *, batch_size: int = 10_000) -> ValidationReport:
     """Assess whether a raster or vector dataset is ready for production use.
 
     Parameters
@@ -40,25 +40,23 @@ def assess_readiness(source: Any) -> ValidationReport:
         for a human-readable summary.
     """
 
+    if batch_size <= 0:
+        raise ValueError("batch_size must be greater than zero")
+
     if isinstance(source, (str, PathLike)):
-        return _assess_path(Path(source))
+        return _assess_path(Path(source), batch_size=batch_size)
 
     return _assess_vector(source)
 
 
-def _assess_path(path: Path) -> ValidationReport:
+def _assess_path(path: Path, *, batch_size: int) -> ValidationReport:
     if not path.exists():
         report = ValidationReport()
         report.add_error(f"Dataset not found: {path}")
         return report
 
     if path.suffix.lower() in {".parquet", ".geoparquet"}:
-        try:
-            return _assess_vector(gpd.read_parquet(path))
-        except Exception:
-            report = ValidationReport()
-            report.add_error(f"'{path}' could not be read as a vector dataset.")
-            return report
+        return _assess_parquet(path, batch_size=batch_size)
 
     try:
         with rasterio.open(path):
@@ -76,6 +74,36 @@ def _assess_path(path: Path) -> ValidationReport:
         return report
 
     return _assess_vector(vector_data)
+
+
+def _assess_parquet(path: Path, *, batch_size: int) -> ValidationReport:
+    report = ValidationReport()
+    geometry_types: set[str] = set()
+    try:
+        import pyarrow.dataset as pads
+
+        dataset = pads.dataset(path, format="parquet")
+        batches = dataset.scanner(batch_size=batch_size).to_batches()
+        feature_count = 0
+        for batch in batches:
+            frame = gpd.GeoDataFrame.from_arrow(batch)
+            feature_count += len(frame)
+            geometry_types.update(frame.geometry[~frame.geometry.is_empty].geom_type.unique())
+            report.issues.extend(_assess_vector(frame).issues)
+    except Exception:
+        report.add_error(f"'{path}' could not be read as a vector dataset.")
+        return report
+
+    if feature_count == 0:
+        report.add_error("Vector dataset contains no features.")
+    elif len(geometry_types) > 1:
+        type_list = ", ".join(sorted(geometry_types))
+        report.add_warning(
+            f"Dataset mixes multiple geometry types ({type_list}); "
+            "many downstream tools expect a single geometry type per layer."
+        )
+
+    return report
 
 
 def _assess_raster(path: Path) -> ValidationReport:

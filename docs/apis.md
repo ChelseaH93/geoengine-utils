@@ -43,7 +43,8 @@ repaired = repair_vector(frame, drop_empty=True)
 
 Run the preflight checks before converting vector data to PMTiles. The report
 checks readability, CRS, bounds, empty features, invalid geometries, and mixed
-geometry types. Projected CRSs are reported as warnings because conversion
+geometry types. Parquet and GeoParquet inputs are validated as bounded Arrow
+record batches. Projected CRSs are reported as warnings because conversion
 pipelines commonly reproject to EPSG:4326 before tiling.
 
 ```python
@@ -54,9 +55,10 @@ print(report.format_report())
 ```
 
 Convert a vector file directly to a PMTiles v3 archive. The converter runs
-preflight checks, reprojects to EPSG:4326, writes gzip-compressed MVT tiles,
+preflight checks, reprojects to Web Mercator (EPSG:3857), writes gzip-compressed MVT tiles,
 streams GeoParquet record batches, uses a spatial index for tile candidates,
-clips geometries to tile bounds, and simplifies them according to zoom:
+clips geometries to tile bounds, simplifies them according to zoom, and stages
+tile features on disk while the archive is assembled:
 
 ```python
 from geoengine_utils.cloud import convert_vector_to_pmtiles
