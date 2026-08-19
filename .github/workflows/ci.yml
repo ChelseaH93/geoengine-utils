@@ -13,4 +13,6 @@ jobs:
         with:
           python-version: '3.11'
       - run: python -m pip install --upgrade pip
-      - run: pip install -e .
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pip install -e ".[cloud]"
+      - run: python -m pytest -q
