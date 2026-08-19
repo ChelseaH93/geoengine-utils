@@ -39,6 +39,32 @@ simplified = simplify_vector(frame, tolerance=0.0)
 repaired = repair_vector(frame, drop_empty=True)
 ```
 
+### PMTiles conversion helpers
+
+Run the preflight checks before converting vector data to PMTiles. The report
+checks readability, CRS, bounds, empty features, invalid geometries, and mixed
+geometry types. Projected CRSs are reported as warnings because conversion
+pipelines commonly reproject to EPSG:4326 before tiling.
+
+```python
+from geoengine_utils.cloud import assess_pmtiles_input
+
+report = assess_pmtiles_input("example.geoparquet")
+print(report.format_report())
+```
+
+For large Parquet or GeoParquet inputs, stream bounded PyArrow record batches
+instead of loading the full table into memory:
+
+```python
+from geoengine_utils.cloud import iter_pyarrow_batches
+
+for batch in iter_pyarrow_batches("example.geoparquet", batch_size=10_000):
+    convert_batch_to_tiles(batch)
+```
+
+Install the optional dependency with `pip install geoengine-utils[cloud]`.
+
 ### Readiness assessment
 
 `assess_readiness` is the single entry point for checking whether a raster or vector dataset is ready for production use. It accepts a file path, a GeoDataFrame/GeoSeries, or an iterable of geometries and infers the dataset type and metadata it needs automatically.

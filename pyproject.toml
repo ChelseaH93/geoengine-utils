@@ -17,6 +17,11 @@ geoengine-utils = "geoengine_utils.cli:main"
 dev = [
     "ruff>=0.6.0",
 ]
+cloud = [
+    "mapbox-vector-tile>=2.0",
+    "pyarrow>=15.0",
+    "pmtiles>=3.0",
+]
 
 [tool.ruff]
 line-length = 100

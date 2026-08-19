@@ -157,6 +157,24 @@ repaired = repair_vector(frame, drop_empty=True)
 print(assess_readiness(repaired).format_report())
 ```
 
+### PMTiles preflight and streaming
+
+Use the PMTiles helpers to check vector data before conversion and stream
+large Parquet or GeoParquet inputs in bounded PyArrow record batches:
+
+```python
+from geoengine_utils.cloud import assess_pmtiles_input, iter_pyarrow_batches
+
+report = assess_pmtiles_input("example.geoparquet")
+if report.passed:
+    for batch in iter_pyarrow_batches("example.geoparquet", batch_size=10_000):
+        convert_batch_to_tiles(batch)
+```
+
+The optional PyArrow dependency is installed with `pip install geoengine-utils[cloud]`.
+The repository currently provides the preflight and streaming stages; a PMTiles
+writer or tile encoder can be connected to `convert_batch_to_tiles`.
+
 For raster data, the same helper works with a raster file path:
 
 ```python

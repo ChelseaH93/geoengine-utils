@@ -74,6 +74,11 @@ See: https://github.com/opengeospatial/geoparquet
 
 https://protomaps.com/downloads
 
+Before converting a large GeoParquet dataset to PMTiles, run
+`assess_pmtiles_input` and process the input with `iter_pyarrow_batches` to
+keep memory usage bounded. The PMTiles writer or tile encoder can consume each
+record batch in turn.
+
 ---
 
 # STAC Catalogs
