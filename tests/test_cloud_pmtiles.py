@@ -1,8 +1,10 @@
 import geopandas as gpd
+import gzip
+import mapbox_vector_tile
 import pyarrow as pa
 import pyarrow.parquet as pq
-from pmtiles.reader import MmapSource, Reader
 import pytest
+from pmtiles.reader import MmapSource, Reader
 from shapely.geometry import Point, Polygon
 
 from geoengine_utils.cloud import (
@@ -81,4 +83,5 @@ def test_convert_vector_to_pmtiles_writes_readable_archive(tmp_path):
         assert archive.metadata()["vector_layers"][0]["id"] == "data"
         tile = archive.get(0, 0, 0)
         assert tile is not None
-        assert tile[:2] == b"\x1f\x8b"
+        decoded = mapbox_vector_tile.decode(gzip.decompress(tile))
+        assert len(decoded["data"]["features"]) == 2

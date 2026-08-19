@@ -53,6 +53,23 @@ report = assess_pmtiles_input("example.geoparquet")
 print(report.format_report())
 ```
 
+Convert a vector file directly to a PMTiles v3 archive. The converter runs
+preflight checks, reprojects to EPSG:4326, writes gzip-compressed MVT tiles,
+and processes features in chunks:
+
+```python
+from geoengine_utils.cloud import convert_vector_to_pmtiles
+
+convert_vector_to_pmtiles(
+    "example.shp",
+    "example.pmtiles",
+    layer_name="example",
+    min_zoom=0,
+    max_zoom=12,
+    batch_size=10_000,
+)
+```
+
 For large Parquet or GeoParquet inputs, stream bounded PyArrow record batches
 instead of loading the full table into memory:
 
@@ -63,7 +80,7 @@ for batch in iter_pyarrow_batches("example.geoparquet", batch_size=10_000):
     convert_batch_to_tiles(batch)
 ```
 
-Install the optional dependency with `pip install geoengine-utils[cloud]`.
+Install the optional dependencies with `pip install geoengine-utils[cloud]`.
 
 ### Readiness assessment
 

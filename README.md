@@ -159,8 +159,28 @@ print(assess_readiness(repaired).format_report())
 
 ### PMTiles preflight and streaming
 
-Use the PMTiles helpers to check vector data before conversion and stream
-large Parquet or GeoParquet inputs in bounded PyArrow record batches:
+Use the PMTiles helpers to check vector data before conversion and convert a
+vector file into a PMTiles archive:
+
+```python
+from geoengine_utils.cloud import convert_vector_to_pmtiles
+
+convert_vector_to_pmtiles(
+    "example.shp",
+    "example.pmtiles",
+    layer_name="example",
+    min_zoom=0,
+    max_zoom=12,
+    batch_size=10_000,
+)
+```
+
+The converter reprojects to EPSG:4326, encodes gzip-compressed Mapbox Vector
+Tiles, and writes a PMTiles v3 archive. It processes the input in chunks so
+features from multiple chunks are retained in the same output tile.
+
+For large Parquet or GeoParquet inputs, PyArrow record batches are also
+available when building a custom conversion pipeline:
 
 ```python
 from geoengine_utils.cloud import assess_pmtiles_input, iter_pyarrow_batches
@@ -172,8 +192,7 @@ if report.passed:
 ```
 
 The optional PyArrow dependency is installed with `pip install geoengine-utils[cloud]`.
-The repository currently provides the preflight and streaming stages; a PMTiles
-writer or tile encoder can be connected to `convert_batch_to_tiles`.
+The optional cloud dependencies are installed with `pip install geoengine-utils[cloud]`.
 
 For raster data, the same helper works with a raster file path:
 

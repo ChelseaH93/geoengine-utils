@@ -75,9 +75,11 @@ See: https://github.com/opengeospatial/geoparquet
 https://protomaps.com/downloads
 
 Before converting a large GeoParquet dataset to PMTiles, run
-`assess_pmtiles_input` and process the input with `iter_pyarrow_batches` to
-keep memory usage bounded. The PMTiles writer or tile encoder can consume each
-record batch in turn.
+`assess_pmtiles_input` first. Use `convert_vector_to_pmtiles` for the standard
+conversion path; it writes a PMTiles v3 archive with gzip-compressed MVT tiles
+and processes features in chunks. For custom conversion pipelines,
+`iter_pyarrow_batches` keeps memory usage bounded by yielding one record batch
+at a time.
 
 ---
 

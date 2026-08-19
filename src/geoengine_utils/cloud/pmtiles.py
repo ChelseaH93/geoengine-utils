@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from os import PathLike
 from pathlib import Path
-from collections import defaultdict
 from typing import Any, Iterator, Sequence
 
 import geopandas as gpd
@@ -103,18 +103,18 @@ def convert_vector_to_pmtiles(
 		raise ValueError("PMTiles input must have a CRS defined")
 	frame = frame.to_crs("EPSG:4326")
 	bounds = tuple(float(value) for value in frame.total_bounds)
-	tile_payloads: dict[int, bytes] = {}
+	tile_features: dict[int, list[dict[str, Any]]] = defaultdict(list)
 
 	for start in range(0, len(frame), batch_size):
 		_encode_batch_tiles(
 			frame.iloc[start : start + batch_size],
-			tile_payloads,
+			tile_features,
 			layer_name=layer_name,
 			min_zoom=min_zoom,
 			max_zoom=max_zoom,
 		)
 
-	from pmtiles.tile import Compression, TileType, zxy_to_tileid
+	from pmtiles.tile import Compression, TileType, tileid_to_zxy
 	from pmtiles.writer import Writer
 
 	output_path = Path(output)
@@ -137,7 +137,15 @@ def convert_vector_to_pmtiles(
 	}
 	with output_path.open("wb") as handle:
 		writer = Writer(handle)
-		for tileid, payload in sorted(tile_payloads.items()):
+		for tileid, features in sorted(tile_features.items()):
+			zoom, tile_x, tile_y = tileid_to_zxy(tileid)
+			payload = _encode_tile(
+				features,
+				layer_name=layer_name,
+				zoom=zoom,
+				tile_x=tile_x,
+				tile_y=tile_y,
+			)
 			writer.write_tile(tileid, payload)
 		writer.finalize(header, metadata)
 
@@ -146,15 +154,12 @@ def convert_vector_to_pmtiles(
 
 def _encode_batch_tiles(
 	frame: gpd.GeoDataFrame,
-	tile_payloads: dict[int, bytes],
+	tile_features: dict[int, list[dict[str, Any]]],
 	*,
 	layer_name: str,
 	min_zoom: int,
 	max_zoom: int,
 ) -> None:
-	import gzip
-
-	import mapbox_vector_tile
 	from pmtiles.tile import zxy_to_tileid
 
 	for zoom in range(min_zoom, max_zoom + 1):
@@ -183,16 +188,31 @@ def _encode_batch_tiles(
 					grouped[(tile_x, tile_y)].append(feature)
 
 		for (tile_x, tile_y), features in grouped.items():
-			west, south, east, north = _tile_bounds(tile_x, tile_y, zoom)
-			encoded = mapbox_vector_tile.encode(
-				[{"name": layer_name, "features": features}],
-				default_options={
-					"quantize_bounds": (west, south, east, north),
-					"extents": 4096,
-					"y_coord_down": False,
-				},
-			)
-			tile_payloads[zxy_to_tileid(zoom, tile_x, tile_y)] = gzip.compress(encoded)
+			tile_features[zxy_to_tileid(zoom, tile_x, tile_y)].extend(features)
+
+
+def _encode_tile(
+	features: list[dict[str, Any]],
+	*,
+	layer_name: str,
+	zoom: int,
+	tile_x: int,
+	tile_y: int,
+) -> bytes:
+	import gzip
+
+	import mapbox_vector_tile
+
+	west, south, east, north = _tile_bounds(tile_x, tile_y, zoom)
+	encoded = mapbox_vector_tile.encode(
+		[{"name": layer_name, "features": features}],
+		default_options={
+			"quantize_bounds": (west, south, east, north),
+			"extents": 4096,
+			"y_coord_down": False,
+		},
+	)
+	return gzip.compress(encoded)
 
 
 def _lon_to_tile(longitude: float, zoom: int) -> int:
