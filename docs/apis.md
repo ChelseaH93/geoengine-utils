@@ -26,7 +26,7 @@ recommend_crs(latitude=-33.9, longitude=18.4)
 
 ```python
 from geoengine_utils import assess_readiness
-from geoengine_utils.vector import convert_vector, simplify_vector
+from geoengine_utils.vector import convert_vector, repair_vector, simplify_vector
 
 import geopandas as gpd
 from shapely.geometry import Point
@@ -36,6 +36,7 @@ frame = convert_vector(geometries)
 
 assess_readiness(frame)
 simplified = simplify_vector(frame, tolerance=0.0)
+repaired = repair_vector(frame, drop_empty=True)
 ```
 
 ### Readiness assessment

@@ -144,6 +144,19 @@ print(recommendation.recommended)
 print(recommendation.alternatives[:3])
 ```
 
+For invalid or self-intersecting vector geometries, use `repair_vector` to create a repaired copy and then validate it again:
+
+```python
+import geopandas as gpd
+
+from geoengine_utils import assess_readiness
+from geoengine_utils.vector import repair_vector
+
+frame = gpd.read_file("example.geojson")
+repaired = repair_vector(frame, drop_empty=True)
+print(assess_readiness(repaired).format_report())
+```
+
 For raster data, the same helper works with a raster file path:
 
 ```python
