@@ -52,6 +52,14 @@ def _assess_path(path: Path) -> ValidationReport:
         report.add_error(f"Dataset not found: {path}")
         return report
 
+    if path.suffix.lower() in {".parquet", ".geoparquet"}:
+        try:
+            return _assess_vector(gpd.read_parquet(path))
+        except Exception:
+            report = ValidationReport()
+            report.add_error(f"'{path}' could not be read as a vector dataset.")
+            return report
+
     try:
         with rasterio.open(path):
             pass

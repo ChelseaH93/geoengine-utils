@@ -5,8 +5,8 @@ import mapbox_vector_tile
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
-from pmtiles.reader import MmapSource, Reader
-from shapely.geometry import Point, Polygon
+from pmtiles.reader import MmapSource, Reader, all_tiles
+from shapely.geometry import Point, Polygon, box
 
 from geoengine_utils.cloud import (
     assess_pmtiles_input,
@@ -86,3 +86,48 @@ def test_convert_vector_to_pmtiles_writes_readable_archive(tmp_path):
         assert tile is not None
         decoded = mapbox_vector_tile.decode(gzip.decompress(tile))
         assert len(decoded["data"]["features"]) == 2
+
+
+def test_convert_vector_to_pmtiles_streams_geoparquet_batches(tmp_path):
+    source = tmp_path / "source.parquet"
+    output = tmp_path / "output.pmtiles"
+    frame = gpd.GeoDataFrame(
+        {"name": ["a", "b", "c"]},
+        geometry=[Point(0, 0), Point(0.01, 0.01), Point(0.02, 0.02)],
+        crs="EPSG:4326",
+    )
+    frame.to_parquet(source)
+
+    convert_vector_to_pmtiles(source, output, min_zoom=0, max_zoom=0, batch_size=1)
+
+    with output.open("rb") as handle:
+        source_bytes = MmapSource(handle)
+        (zxy, payload), = list(all_tiles(source_bytes))
+        decoded = mapbox_vector_tile.decode(gzip.decompress(payload))
+        assert zxy == (0, 0, 0)
+        assert len(decoded["data"]["features"]) == 3
+
+
+def test_convert_vector_to_pmtiles_clips_geometry_to_tile_bounds(tmp_path):
+    source = tmp_path / "source.geojson"
+    output = tmp_path / "output.pmtiles"
+    frame = gpd.GeoDataFrame(geometry=[box(-10, -10, 10, 10)], crs="EPSG:4326")
+    frame.to_file(source, driver="GeoJSON")
+
+    convert_vector_to_pmtiles(
+        source,
+        output,
+        min_zoom=1,
+        max_zoom=1,
+        simplify=False,
+    )
+
+    with output.open("rb") as handle:
+        source_bytes = MmapSource(handle)
+        tiles = list(all_tiles(source_bytes))
+
+    assert len(tiles) == 4
+    for _, payload in tiles:
+        decoded = mapbox_vector_tile.decode(gzip.decompress(payload))
+        coordinates = decoded["data"]["features"][0]["geometry"]["coordinates"][0]
+        assert all(0 <= coordinate <= 4096 for point in coordinates for coordinate in point)

@@ -55,7 +55,8 @@ print(report.format_report())
 
 Convert a vector file directly to a PMTiles v3 archive. The converter runs
 preflight checks, reprojects to EPSG:4326, writes gzip-compressed MVT tiles,
-and processes features in chunks:
+streams GeoParquet record batches, uses a spatial index for tile candidates,
+clips geometries to tile bounds, and simplifies them according to zoom:
 
 ```python
 from geoengine_utils.cloud import convert_vector_to_pmtiles
@@ -67,6 +68,9 @@ convert_vector_to_pmtiles(
     min_zoom=0,
     max_zoom=12,
     batch_size=10_000,
+    clip=True,
+    simplify=True,
+    simplify_factor=0.5,
 )
 ```
 

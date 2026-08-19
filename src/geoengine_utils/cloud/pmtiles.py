@@ -9,6 +9,7 @@ from typing import Any, Iterator, Sequence
 
 import geopandas as gpd
 from pyproj import CRS
+from shapely.geometry import box
 
 from ..validation import ValidationReport, assess_readiness
 
@@ -80,19 +81,25 @@ def convert_vector_to_pmtiles(
 	min_zoom: int = 0,
 	max_zoom: int = 8,
 	batch_size: int = 10_000,
+	clip: bool = True,
+	simplify: bool = True,
+	simplify_factor: float = 0.5,
 ) -> Path:
 	"""Convert a vector dataset to a PMTiles archive using bounded batches.
 
 	Parquet and GeoParquet sources are read with PyArrow record batches. Other
 	vector sources are read with GeoPandas and processed in DataFrame chunks.
-	Input data is reprojected to EPSG:4326 for MVT encoding. The output uses
-	gzip-compressed Mapbox Vector Tiles and PMTiles v3 metadata.
+	Parquet and GeoParquet sources are streamed as Arrow record batches. Each
+	batch is reprojected to Web Mercator, spatially indexed, clipped to tile
+	bounds, and simplified according to its zoom before MVT encoding.
 	"""
 
 	if min_zoom < 0 or max_zoom < min_zoom or max_zoom > 22:
 		raise ValueError("zoom range must satisfy 0 <= min_zoom <= max_zoom <= 22")
 	if batch_size <= 0:
 		raise ValueError("batch_size must be greater than zero")
+	if simplify_factor < 0:
+		raise ValueError("simplify_factor must be greater than or equal to zero")
 
 	report = assess_pmtiles_input(source)
 	if not report.passed:
@@ -105,13 +112,16 @@ def convert_vector_to_pmtiles(
 	bounds = tuple(float(value) for value in frame.total_bounds)
 	tile_features: dict[int, list[dict[str, Any]]] = defaultdict(list)
 
-	for start in range(0, len(frame), batch_size):
+	for batch in _iter_vector_frames(source, frame, batch_size=batch_size):
 		_encode_batch_tiles(
-			frame.iloc[start : start + batch_size],
+			batch.to_crs("EPSG:3857"),
 			tile_features,
 			layer_name=layer_name,
 			min_zoom=min_zoom,
 			max_zoom=max_zoom,
+			clip=clip,
+			simplify=simplify,
+			simplify_factor=simplify_factor,
 		)
 
 	from pmtiles.tile import Compression, TileType, tileid_to_zxy
@@ -159,36 +169,54 @@ def _encode_batch_tiles(
 	layer_name: str,
 	min_zoom: int,
 	max_zoom: int,
+	clip: bool,
+	simplify: bool,
+	simplify_factor: float,
 ) -> None:
 	from pmtiles.tile import zxy_to_tileid
 
 	for zoom in range(min_zoom, max_zoom + 1):
-		grouped: dict[tuple[int, int], list[dict[str, Any]]] = defaultdict(list)
-		for index, row in frame.iterrows():
-			geometry = row.geometry
-			if geometry is None or geometry.is_empty:
-				continue
-			minx, miny, maxx, maxy = geometry.bounds
-			min_tile_x = _lon_to_tile(minx, zoom)
-			max_tile_x = _lon_to_tile(maxx, zoom)
-			min_tile_y = _lat_to_tile(maxy, zoom)
-			max_tile_y = _lat_to_tile(miny, zoom)
-			properties = {
-				str(key): value
-				for key, value in row.items()
-				if key != frame.geometry.name and value is not None
-			}
-			feature = {
-				"geometry": geometry.__geo_interface__,
-				"properties": properties,
-				"id": index,
-			}
-			for tile_x in range(min_tile_x, max_tile_x + 1):
-				for tile_y in range(min_tile_y, max_tile_y + 1):
-					grouped[(tile_x, tile_y)].append(feature)
+		min_lon, min_lat, max_lon, max_lat = _mercator_to_lonlat_bounds(frame.total_bounds)
+		min_tile_x = _lon_to_tile(min_lon, zoom)
+		max_tile_x = _lon_to_tile(max_lon, zoom)
+		min_tile_y = _lat_to_tile(max_lat, zoom)
+		max_tile_y = _lat_to_tile(min_lat, zoom)
+		spatial_index = frame.sindex
+		tile_width = 40075016.68557849 / (1 << zoom)
 
-		for (tile_x, tile_y), features in grouped.items():
-			tile_features[zxy_to_tileid(zoom, tile_x, tile_y)].extend(features)
+		for tile_x in range(min_tile_x, max_tile_x + 1):
+			for tile_y in range(min_tile_y, max_tile_y + 1):
+				west, south, east, north = _tile_bounds_mercator(tile_x, tile_y, zoom)
+				tile_geometry = box(west, south, east, north)
+				candidate_indexes = spatial_index.query(tile_geometry, predicate="intersects")
+				features = []
+				for index in candidate_indexes:
+					row = frame.iloc[index]
+					geometry = row.geometry
+					if clip:
+						geometry = geometry.intersection(tile_geometry)
+					if simplify and not geometry.is_empty:
+						geometry = geometry.simplify(
+							tolerance=tile_width / 4096 * simplify_factor,
+							preserve_topology=True,
+						)
+					if geometry.is_empty:
+						continue
+					properties = {
+						str(key): value
+						for key, value in row.items()
+						if key != frame.geometry.name and value is not None
+					}
+					features.append(
+						{
+							"geometry": geometry.__geo_interface__,
+							"properties": properties,
+							"id": row.name,
+						}
+					)
+
+				if features:
+					tile_features[zxy_to_tileid(zoom, tile_x, tile_y)].extend(features)
 
 
 def _encode_tile(
@@ -203,7 +231,7 @@ def _encode_tile(
 
 	import mapbox_vector_tile
 
-	west, south, east, north = _tile_bounds(tile_x, tile_y, zoom)
+	west, south, east, north = _tile_bounds_mercator(tile_x, tile_y, zoom)
 	encoded = mapbox_vector_tile.encode(
 		[{"name": layer_name, "features": features}],
 		default_options={
@@ -240,14 +268,60 @@ def _tile_bounds(tile_x: int, tile_y: int, zoom: int) -> tuple[float, float, flo
 	return west, south, east, north
 
 
+def _tile_bounds_mercator(
+	tile_x: int, tile_y: int, zoom: int
+) -> tuple[float, float, float, float]:
+	world = 40075016.68557849
+	west = tile_x / (1 << zoom) * world - world / 2
+	east = (tile_x + 1) / (1 << zoom) * world - world / 2
+	north = world / 2 - tile_y / (1 << zoom) * world
+	south = world / 2 - (tile_y + 1) / (1 << zoom) * world
+	return west, south, east, north
+
+
+def _mercator_to_lonlat_bounds(
+	bounds: Sequence[float],
+) -> tuple[float, float, float, float]:
+	import math
+
+	minx, miny, maxx, maxy = bounds
+	world = 40075016.68557849
+	min_lon = minx / world * 360
+	max_lon = maxx / world * 360
+	min_lat = math.degrees(math.atan(math.sinh(2 * math.pi * miny / world)))
+	max_lat = math.degrees(math.atan(math.sinh(2 * math.pi * maxy / world)))
+	return min_lon, min_lat, max_lon, max_lat
+
+
 def _read_vector_source(source: Any) -> gpd.GeoDataFrame:
 	if isinstance(source, gpd.GeoDataFrame):
 		return source
 	if isinstance(source, gpd.GeoSeries):
 		return gpd.GeoDataFrame(geometry=source, crs=source.crs)
 	if isinstance(source, (str, PathLike)):
-		return gpd.read_file(source)
+		path = Path(source)
+		if path.suffix.lower() in {".parquet", ".geoparquet"}:
+			return gpd.read_parquet(path)
+		return gpd.read_file(path)
 	raise TypeError("PMTiles input must be a vector path, GeoDataFrame, or GeoSeries")
+
+
+def _iter_vector_frames(
+	source: Any,
+	frame: gpd.GeoDataFrame,
+	*,
+	batch_size: int,
+) -> Iterator[gpd.GeoDataFrame]:
+	if isinstance(source, (str, PathLike)) and Path(source).suffix.lower() in {
+		".parquet",
+		".geoparquet",
+	}:
+		for batch in iter_pyarrow_batches(source, batch_size=batch_size):
+			yield gpd.GeoDataFrame.from_arrow(batch)
+		return
+
+	for start in range(0, len(frame), batch_size):
+		yield frame.iloc[start : start + batch_size]
 
 
 def _is_finite(value: Any) -> bool:
