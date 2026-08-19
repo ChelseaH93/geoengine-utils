@@ -4,9 +4,11 @@ Vector readiness validation lives in ``geoengine_utils.validation.assess_readine
 """
 
 from .convert import convert_vector
+from .repair import repair_vector
 from .simplify import simplify_vector
 
 __all__ = [
     "convert_vector",
+    "repair_vector",
     "simplify_vector",
 ]

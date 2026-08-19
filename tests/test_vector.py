@@ -2,7 +2,7 @@ import geopandas as gpd
 from shapely.geometry import Point, Polygon
 
 from geoengine_utils.validation import assess_readiness
-from geoengine_utils.vector import convert_vector, simplify_vector
+from geoengine_utils.vector import convert_vector, repair_vector, simplify_vector
 
 
 def test_convert_vector_from_geometries():
@@ -83,3 +83,34 @@ def test_simplify_vector_returns_a_new_geodataframe():
     assert isinstance(simplified, gpd.GeoDataFrame)
     assert simplified is not original
     assert simplified.crs == original.crs
+
+
+def test_repair_vector_repairs_invalid_geometries_without_mutating_input():
+    bowtie = Polygon([(0, 0), (1, 1), (1, 0), (0, 1), (0, 0)])
+    original = gpd.GeoDataFrame(
+        {"name": ["invalid"]},
+        geometry=[bowtie],
+        index=[7],
+        crs="EPSG:4326",
+    )
+
+    repaired = repair_vector(original)
+
+    assert repaired is not original
+    assert repaired.index.tolist() == [7]
+    assert repaired["name"].tolist() == ["invalid"]
+    assert repaired.crs == original.crs
+    assert repaired.geometry.is_valid.all()
+    assert not original.geometry.is_valid.all()
+
+
+def test_repair_vector_can_drop_empty_geometries():
+    original = gpd.GeoDataFrame(
+        geometry=[Polygon(), Point(0, 0)],
+        crs="EPSG:4326",
+    )
+
+    repaired = repair_vector(original, drop_empty=True)
+
+    assert len(repaired) == 1
+    assert repaired.geometry.iloc[0].equals(Point(0, 0))
