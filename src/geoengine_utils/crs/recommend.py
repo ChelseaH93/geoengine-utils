@@ -10,6 +10,7 @@ from pyproj import CRS
 from pyproj.aoi import AreaOfInterest
 from pyproj.database import query_crs_info
 from pyproj.enums import PJType
+from rasterio.warp import transform_bounds
 from shapely.geometry.base import BaseGeometry
 
 from .country_lookup import get_country_centroid, utm_epsg_for
@@ -156,6 +157,19 @@ def score_crs(crs: Any, lon: float | None = None, lat: float | None = None) -> i
     return score
 
 
+def _dataset_bounds(bounds: Any, crs: Any) -> tuple[float, float, float, float]:
+    """Return dataset bounds in the geographic CRS expected by PROJ's AOI query."""
+
+    normalised = normalise_bounds(bounds)
+    if crs is None or CRS.from_user_input(crs).is_geographic:
+        return normalised
+
+    return tuple(
+        float(value)
+        for value in transform_bounds(crs, "EPSG:4326", *normalised)
+    )
+
+
 def utm_epsg(lon: float, lat: float) -> int:
     """Derive a UTM EPSG code from longitude and latitude."""
 
@@ -216,24 +230,19 @@ def estimate_crs(data: Any) -> CRSRecommendation:
             vector_data = gpd.read_file(path)
         except Exception:
             with rasterio.open(path) as src:
-                bounds = (
-                    src.bounds.left,
-                    src.bounds.bottom,
-                    src.bounds.right,
-                    src.bounds.top,
-                )
+                bounds = _dataset_bounds(src.bounds, src.crs)
             return recommend_crs(bounds)
 
-        return recommend_crs(vector_data.total_bounds)
+        return recommend_crs(_dataset_bounds(vector_data.total_bounds, vector_data.crs))
 
     if isinstance(data, gpd.GeoDataFrame):
-        return recommend_crs(data.total_bounds)
+        return recommend_crs(_dataset_bounds(data.total_bounds, data.crs))
 
     if isinstance(data, gpd.GeoSeries):
-        return recommend_crs(data.total_bounds)
+        return recommend_crs(_dataset_bounds(data.total_bounds, data.crs))
 
     if hasattr(data, "bounds") and hasattr(data, "total_bounds"):
-        return recommend_crs(data.total_bounds)
+        return recommend_crs(_dataset_bounds(data.total_bounds, getattr(data, "crs", None)))
 
     if hasattr(data, "bounds"):
         return recommend_crs(data.bounds)

@@ -1,6 +1,7 @@
 from pathlib import Path
 from types import SimpleNamespace
 
+import geopandas as gpd
 import pytest
 from shapely.geometry import box
 
@@ -57,6 +58,18 @@ def test_estimate_crs_from_vector_path():
 
     assert result.recommended
     assert result.recommended.code
+
+
+def test_estimate_crs_from_projected_vector():
+
+    data = gpd.GeoDataFrame(
+        geometry=[box(200000, 6200000, 210000, 6210000)],
+        crs="EPSG:32734",
+    )
+
+    result = estimate_crs(data)
+
+    assert result.recommended.code == "2054"
 
 
 def test_score_crs_prefers_expected_utm_zone():
