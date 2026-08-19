@@ -1,5 +1,6 @@
-import geopandas as gpd
 import gzip
+
+import geopandas as gpd
 import mapbox_vector_tile
 import pyarrow as pa
 import pyarrow.parquet as pq
