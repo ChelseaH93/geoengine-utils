@@ -10,6 +10,14 @@ and the ``validate_dataset`` decorator remain available for callers building
 typed ETL pipelines that want to validate function inputs/outputs explicitly.
 """
 
+from .airflow import (
+    AirflowAuditConfig,
+    AirflowAuditIssue,
+    AirflowAuditReport,
+    AirflowTaskAudit,
+    audit_airflow_dag,
+    audit_airflow_dag_file,
+)
 from .database_schema import (
     DatabaseSchemaValidationReport,
     DatabaseTableSchema,
@@ -44,6 +52,12 @@ __all__ = [
     "SchemaValidationIssue",
     "validate_duckdb_schema",
     "validate_snowflake_schema",
+    "AirflowAuditConfig",
+    "AirflowAuditIssue",
+    "AirflowAuditReport",
+    "AirflowTaskAudit",
+    "audit_airflow_dag",
+    "audit_airflow_dag_file",
     "DatasetSchema",
     "RasterDataset",
     "VectorDataset",

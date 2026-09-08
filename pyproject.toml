@@ -34,6 +34,9 @@ snowflake = [
 duckdb = [
     "duckdb>=1.0",
 ]
+airflow = [
+    "apache-airflow>=2.8",
+]
 
 [tool.ruff]
 line-length = 100

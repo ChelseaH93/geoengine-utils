@@ -355,6 +355,51 @@ pip install -e ".[duckdb]"
 pip install -e ".[snowflake]"
 ```
 
+## Airflow DAG audits
+
+Audit DAG structure and operational configuration without importing Airflow at
+normal package startup. Pass an existing DAG object in unit tests or use the
+file helper when Airflow is installed:
+
+```python
+from geoengine_utils.validation import AirflowAuditConfig, audit_airflow_dag
+
+report = audit_airflow_dag(
+    dag,
+    config=AirflowAuditConfig(
+        require_schedule=True,
+        require_task_owner=True,
+        require_retries=True,
+        require_execution_timeout=True,
+        require_tags=True,
+        max_active_runs=4,
+        max_active_tasks=32,
+    ),
+)
+print(report.format_report())
+```
+
+The audit checks dependency cycles, stale task references, disconnected tasks,
+empty DAGs, task owners, retry policies, execution timeouts, schedules,
+catchup, tags, and active-run/task concurrency limits. Findings include
+severity, category, task context, and a suggested corrective action.
+
+Audit DAG files through Airflow's `DagBag`:
+
+```python
+from geoengine_utils.validation import audit_airflow_dag_file
+
+reports = audit_airflow_dag_file("dags/buildings.py", dag_id="building_pipeline")
+for report in reports:
+    print(report.format_report())
+```
+
+Install the optional Airflow dependency with:
+
+```bash
+pip install -e ".[airflow]"
+```
+
 ## Development
 
 Install development dependencies and run the checks:
