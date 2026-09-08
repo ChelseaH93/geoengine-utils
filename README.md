@@ -11,7 +11,7 @@ optimizing geospatial datasets.
 - Static vector format benchmarking for GeoParquet, GeoPackage, Shapefile, and GeoJSON.
 - Cloud Optimized GeoTIFF generation, benchmarking, and configuration suggestions.
 - PMTiles preflight checks, streaming conversion, archive benchmarking, and suggestions.
-- A CLI for dataset validation and CRS estimation.
+- A CLI for dataset validation, CRS estimation, and CI/CD check execution.
 - Typed validation schemas, reports, and a validation decorator for ETL workflows.
 
 ## Installation
@@ -83,6 +83,47 @@ a failing report. The package can also be invoked as a module:
 ```bash
 python -m geoengine_utils.cli validate example.tif
 ```
+
+Run declarative checks in CI/CD with a JSON configuration:
+
+```bash
+geoengine-utils ci .geoengine-utils-ci.json
+geoengine-utils ci .geoengine-utils-ci.json --json
+```
+
+The CI runner currently composes dataset readiness/CRS checks and GIS
+pipeline-stage audits. A configuration can define dataset checks like this:
+
+```json
+{
+    "fail_on_warnings": true,
+    "datasets": [
+        {
+            "name": "buildings",
+            "path": "data/buildings.gpkg",
+            "expected_crs": "EPSG:4326"
+        }
+    ],
+    "pipeline_stages": [
+        {
+            "name": "normalized buildings",
+            "input": "data/raw.geojson",
+            "output": "data/normalized.geojson",
+            "config": {
+                "expected_crs": "EPSG:4326",
+                "expected_geometry_types": ["MultiPolygon"],
+                "max_feature_count_change": 0.05,
+                "allow_schema_additions": false
+            }
+        }
+    ]
+}
+```
+
+Exit code `0` means every configured check passed. Exit code `1` means a check
+failed, including warnings when `fail_on_warnings` is enabled. Exit code `2`
+means the CI configuration itself could not be loaded or executed. Use
+`--json` for CI annotations, artifact capture, or downstream reporting.
 
 ## CRS and vector workflows
 
@@ -400,6 +441,35 @@ Install the optional Airflow dependency with:
 pip install -e ".[airflow]"
 ```
 
+## GIS pipeline stage audits
+
+Compare an input and output stage to catch spatial regressions as a pipeline
+runs:
+
+```python
+from geoengine_utils.validation import PipelineAuditConfig, audit_pipeline_stage
+
+report = audit_pipeline_stage(
+    input_data,
+    output_data,
+    config=PipelineAuditConfig(
+        expected_crs="EPSG:4326",
+        expected_geometry_types=("MultiPolygon",),
+        max_feature_count_change=0.05,
+        max_extent_change=0.05,
+        require_valid_geometry=True,
+        allow_schema_additions=False,
+    ),
+)
+print(report.format_report())
+```
+
+Stage audits check CRS changes, expected geometry types, invalid and empty
+geometries, feature-count drift, spatial extent drift, removed fields, and
+unexpected schema additions. Findings include a severity, category, and
+remediation suggestion. Inputs and outputs may be GeoDataFrames, GeoSeries, or
+vector paths including GeoParquet.
+
 ## Development
 
 Install development dependencies and run the checks:
@@ -408,6 +478,7 @@ Install development dependencies and run the checks:
 pip install -r requirements-dev.txt
 python -m pytest
 ruff check src tests
+python -m geoengine_utils.cli ci .geoengine-utils-ci.json --json
 ```
 
 The repository contains focused tests for CRS selection, raster handling,

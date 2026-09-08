@@ -1,0 +1,9 @@
+{
+  "fail_on_warnings": false,
+  "datasets": [
+    {
+      "name": "raster readiness",
+      "path": "tests/data/test_dem.tif"
+    }
+  ]
+}

@@ -7,6 +7,7 @@ import sys
 from typing import Any, Sequence
 
 from . import __version__
+from .ci import main_ci
 from .crs import estimate_crs
 from .validation import assess_readiness
 
@@ -32,6 +33,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Estimate a suitable projected CRS for a dataset",
     )
     estimate_parser.add_argument("path", help="Path to a vector or raster dataset")
+
+    ci_parser = subparsers.add_parser(
+        "ci",
+        help="Run declarative dataset and pipeline checks for CI/CD",
+    )
+    ci_parser.add_argument("config", help="Path to a JSON CI configuration")
+    ci_parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
 
     return parser
 
@@ -78,6 +86,12 @@ def main(args: Sequence[str] | None = None, *, stdout: Any | None = None) -> int
         else:
             print(output, file=stdout)
         return 0
+
+    if parsed_args.command == "ci":
+        ci_args = [parsed_args.config]
+        if parsed_args.json:
+            ci_args.append("--json")
+        return main_ci(ci_args)
 
     return 0
 

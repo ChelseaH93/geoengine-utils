@@ -3,6 +3,8 @@
 Production-ready utilities for geospatial data engineering.
 """
 
+from .ci import CICheckResult, CIRunReport, run_ci_checks, run_ci_config
+
 __version__ = "0.1.0"
 
 from .crs import (
@@ -26,6 +28,10 @@ from .validation import (
     DatabaseSchemaValidationReport,
     DatabaseTableSchema,
     DatasetSchema,
+    PipelineAuditConfig,
+    PipelineAuditIssue,
+    PipelineStageAuditReport,
+    PipelineStageSummary,
     PostGISAuditReport,
     PostGISIssue,
     PostGISQueryPlan,
@@ -40,6 +46,7 @@ from .validation import (
     assess_readiness,
     audit_airflow_dag,
     audit_airflow_dag_file,
+    audit_pipeline_stage,
     validate_dataset,
     validate_duckdb_schema,
     validate_snowflake_schema,
@@ -56,6 +63,10 @@ def main(*args, **kwargs):
 
 __all__ = [
     "main",
+    "CICheckResult",
+    "CIRunReport",
+    "run_ci_checks",
+    "run_ci_config",
     "__version__",
     "get_raster_metadata",
     "assess_readiness",
@@ -72,6 +83,11 @@ __all__ = [
     "PostGISTableAudit",
     "PostGISIssue",
     "PostGISQueryPlan",
+    "PipelineAuditConfig",
+    "PipelineAuditIssue",
+    "PipelineStageAuditReport",
+    "PipelineStageSummary",
+    "audit_pipeline_stage",
     "DatabaseSchemaValidationReport",
     "DatabaseTableSchema",
     "SchemaColumn",

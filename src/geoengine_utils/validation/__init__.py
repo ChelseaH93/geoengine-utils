@@ -26,6 +26,13 @@ from .database_schema import (
     validate_duckdb_schema,
     validate_snowflake_schema,
 )
+from .pipeline import (
+    PipelineAuditConfig,
+    PipelineAuditIssue,
+    PipelineStageAuditReport,
+    PipelineStageSummary,
+    audit_pipeline_stage,
+)
 from .postgis import (
     PostGISAuditReport,
     PostGISIssue,
@@ -58,6 +65,11 @@ __all__ = [
     "AirflowTaskAudit",
     "audit_airflow_dag",
     "audit_airflow_dag_file",
+    "PipelineAuditConfig",
+    "PipelineAuditIssue",
+    "PipelineStageAuditReport",
+    "PipelineStageSummary",
+    "audit_pipeline_stage",
     "DatasetSchema",
     "RasterDataset",
     "VectorDataset",
