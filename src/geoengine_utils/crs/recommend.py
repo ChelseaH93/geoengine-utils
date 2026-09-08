@@ -170,6 +170,18 @@ def _dataset_bounds(bounds: Any, crs: Any) -> tuple[float, float, float, float]:
     )
 
 
+def _area_contains_point(area: Any, lon: float, lat: float) -> bool:
+    """Return whether a PROJ area of use contains a geographic point."""
+
+    if area is None:
+        return False
+
+    return (
+        area.west <= lon <= area.east
+        and area.south <= lat <= area.north
+    )
+
+
 def utm_epsg(lon: float, lat: float) -> int:
     """Derive a UTM EPSG code from longitude and latitude."""
 
@@ -190,10 +202,11 @@ def recommend_crs(geometry: BaseGeometry | tuple[float, float, float, float]) ->
     lat = (miny + maxy) / 2
 
     for match in matches:
-        area = match.area_of_use.name.lower()
+        area = match.area_of_use
+        area_name = (area.name or "").lower() if area else ""
 
         for country, preferred in PREFERRED_CRS.items():
-            if country.lower() in area:
+            if country.lower() in area_name and _area_contains_point(area, lon, lat):
                 crs = CRS.from_epsg(preferred.epsg)
                 return CRSRecommendation(
                     recommended=crs_to_info(crs),

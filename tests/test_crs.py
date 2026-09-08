@@ -43,6 +43,15 @@ def test_recommend_geometry():
     assert result.recommended
 
 
+def test_recommend_geometry_in_england_uses_british_national_grid():
+
+    geometry = box(-5.8, 49.8, 1.8, 55.9)
+
+    result = recommend_crs(geometry)
+
+    assert result.recommended.code == "27700"
+
+
 def test_recommend_country():
 
     result = recommend(country="South Africa")
