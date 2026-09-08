@@ -1,150 +1,108 @@
 # geoengine-utils
 
-> Modern Python utilities for geospatial data engineering.
+Practical Python utilities for validating, transforming, benchmarking, and
+optimizing geospatial datasets.
 
-geoengine-utils is an open-source toolkit designed to simplify common geospatial data engineering tasks such as validating raster datasets, preparing cloud-native geospatial formats, and building reliable GIS data pipelines.
+## What is included
 
-The goal is to provide production-ready utilities that help engineers build scalable geospatial workflows rather than ad hoc scripts.
-
----
-
-## ✨ Features
-
-### Current
-
-- Read raster metadata
-- Validate raster datasets
-- Estimate a suitable projected CRS from raster/vector datasets, geometries, or bounds
-- Validate CRS definitions and recommend CRS choices for country or geometry-based workflows
-- Production-ready validation reports
-- Vector validation helpers
-- Typed validation schemas for raster and vector datasets
-- Decorator-based validation for ETL pipelines
-- Command Line Interface for raster validation
-
-### Planned
-
-- Cloud Optimized GeoTIFF (COG) validation
-- COG conversion
-- GeoParquet utilities
-- PMTiles generation
-- STAC metadata generation
-- Raster clipping
-- Raster reprojection
-- Performance benchmarking
-
----
+- Raster metadata, readiness checks, resampling recommendations, and resampling.
+- CRS validation, estimation, country-aware recommendations, and geometry transforms.
+- Vector conversion, geometry repair, simplification, and readiness checks.
+- Static vector format benchmarking for GeoParquet, GeoPackage, Shapefile, and GeoJSON.
+- Cloud Optimized GeoTIFF generation, benchmarking, and configuration suggestions.
+- PMTiles preflight checks, streaming conversion, archive benchmarking, and suggestions.
+- A CLI for dataset validation and CRS estimation.
+- Typed validation schemas, reports, and a validation decorator for ETL workflows.
 
 ## Installation
 
-Clone the repository
-
-```bash
-git clone https://github.com/<yourusername>/geoengine-utils.git
-cd geoengine-utils
-```
-
-Create a virtual environment
+Install the package in editable mode while developing:
 
 ```bash
 python -m venv .venv
-```
 
-Activate it
-
-Windows
-
-```bash
+# Windows
 .venv\Scripts\activate
-```
 
-Linux / macOS
+# Linux or macOS
+# source .venv/bin/activate
 
-```bash
-source .venv/bin/activate
-```
-
-Install dependencies and the package itself
-
-```bash
-pip install -r requirements-dev.txt
 pip install -e .
 ```
 
----
+Optional dependency groups:
 
-## Quick Start
+```bash
+# GeoParquet support for static format benchmarking
+pip install -e ".[optimization]"
+
+# COG and PMTiles support, including vector tile dependencies
+pip install -e ".[cloud]"
+
+# Development tools and test dependencies
+pip install -r requirements-dev.txt
+```
+
+## Start here
+
+Use readiness assessment as the general entry point for raster and vector
+datasets:
 
 ```python
 from geoengine_utils import assess_readiness, get_raster_metadata
 
 metadata = get_raster_metadata("example.tif")
-result = assess_readiness("example.tif")
+report = assess_readiness("example.tif")
 
 print(metadata)
-print(result.passed)
-print(result.errors)
+print(report.format_report())
 ```
 
-### Readiness assessment
+`assess_readiness` accepts raster paths, vector paths, GeoDataFrames,
+GeoSeries, and geometry iterables. It reports issues such as missing CRS,
+invalid or empty geometries, mixed geometry types, unavailable bounds, and
+raster metadata problems.
 
-`assess_readiness` is the single entry point for checking whether a dataset is ready for production use. Hand it a raster path, vector path, GeoDataFrame/GeoSeries, or an iterable of geometries and it detects the dataset type and infers everything it needs (CRS, bounds, geometry validity, band/feature counts) automatically — no manual schema building required.
+## Command line
 
-```python
-from geoengine_utils import assess_readiness
+Validate a raster or vector dataset:
 
-raster_report = assess_readiness("demo.tif")
-vector_report = assess_readiness("demo.geojson")
-
-print(raster_report.summary())
-print(vector_report.format_report())
+```bash
+geoengine-utils validate example.tif
 ```
 
-For ETL-style pipelines that want to validate function inputs/outputs against a typed schema explicitly, the lower-level `RasterDataset`/`VectorDataset` classes and `validate_dataset` decorator remain available.
+Estimate a projected CRS from a raster or vector dataset:
 
-```python
-from geoengine_utils import RasterDataset, VectorDataset, ValidationReport, validate_dataset
-
-raster = RasterDataset(name="demo", path="demo.tif", crs="EPSG:4326", bounds=(0, 0, 1, 1))
-vector = VectorDataset(name="demo", crs="EPSG:4326", bounds=(0, 0, 1, 1), geometry=None, topology=False)
-
-report = raster.validate()
-print(report.summary())
-
-@validate_dataset(input_schema=VectorDataset, output_schema=VectorDataset)
-def transform(data):
-    return data
+```bash
+geoengine-utils estimate-crs buildings.gpkg
 ```
 
-### CLI validation
-
-You can also validate a raster from the command line:
+The validation command returns exit code `0` for a passing report and `1` for
+a failing report. The package can also be invoked as a module:
 
 ```bash
 python -m geoengine_utils.cli validate example.tif
 ```
 
-A passing validation returns exit code `0`, while failing validation returns `1` so it can be used in scripts and CI pipelines.
+## CRS and vector workflows
 
-### CRS and vector helpers
-
-Recent progress includes a new dataset-aware CRS estimation workflow. You can now estimate a suitable projected CRS from a GeoJSON, GeoPackage, raster file, geometry, or bounds tuple.
-
-You can use the CRS helpers to validate a CRS definition or estimate a suitable projected CRS for a dataset footprint.
+Estimate a CRS from a dataset footprint. The estimator transforms projected
+dataset bounds to geographic coordinates before choosing a candidate. It uses
+country-specific preferences where appropriate, such as EPSG:27700 for an
+England or Great Britain footprint, and otherwise selects a location-aware UTM
+zone.
 
 ```python
-from pathlib import Path
-
 from geoengine_utils import estimate_crs, validate_crs
 
 print(validate_crs("EPSG:4326"))
-
-recommendation = estimate_crs(Path("example.geojson"))
+recommendation = estimate_crs("buildings.gpkg")
 print(recommendation.recommended)
 print(recommendation.alternatives[:3])
 ```
 
-For invalid or self-intersecting vector geometries, use `repair_vector` to create a repaired copy and then validate it again:
+Repair invalid geometries without mutating the source frame, then validate the
+result:
 
 ```python
 import geopandas as gpd
@@ -152,52 +110,119 @@ import geopandas as gpd
 from geoengine_utils import assess_readiness
 from geoengine_utils.vector import repair_vector
 
-frame = gpd.read_file("example.geojson")
+frame = gpd.read_file("buildings.geojson")
 repaired = repair_vector(frame, drop_empty=True)
 print(assess_readiness(repaired).format_report())
 ```
 
-### PMTiles preflight and streaming
+Other vector helpers include `convert_vector` and `simplify_vector`. Raster
+helpers include `get_raster_metadata`, `recommend_resampling`, and
+`resample_raster`.
 
-Use the PMTiles helpers to check vector data before conversion and convert a
-vector file into a PMTiles archive:
+## Static vector format optimization
+
+The non-cloud optimization package compares common static vector formats using
+the same source data. It measures storage, read time, write time, feature and
+column counts, geometry types, CRS, and bounds. Shapefile storage includes its
+sidecar files.
 
 ```python
-from geoengine_utils.cloud import convert_vector_to_pmtiles
-
-convert_vector_to_pmtiles(
-    "example.shp",
-    "example.pmtiles",
-    layer_name="example",
-    min_zoom=0,
-    max_zoom=12,
-    batch_size=10_000,
+from geoengine_utils.optimization import (
+    StaticDataConfiguration,
+    benchmark_static_configurations,
+    suggest_static_optimization,
 )
+
+results = benchmark_static_configurations(
+    "buildings.geojson",
+    [
+        StaticDataConfiguration("geoparquet", compression="zstd"),
+        StaticDataConfiguration("geopackage"),
+        StaticDataConfiguration("shapefile"),
+        StaticDataConfiguration("geojson"),
+    ],
+)
+
+suggestion = suggest_static_optimization(results, target_read_seconds=0.5)
+print(suggestion.recommended.format_report())
+print(suggestion.rationale)
 ```
 
-The converter reprojects to Web Mercator for tiling, encodes gzip-compressed
-Mapbox Vector Tiles, and writes a PMTiles v3 archive. GeoParquet inputs are
-validated and read as PyArrow batches. Geometries are spatially indexed,
-clipped to tile bounds, and simplified according to zoom before encoding.
-Tile features are staged in a temporary disk-backed SQLite store, so the
-conversion does not retain the full source or all output features in memory.
+Benchmark an existing file directly with `benchmark_static_dataset`. GeoParquet
+support is provided by the `optimization` extra:
 
-For large Parquet or GeoParquet inputs, PyArrow record batches are also
-available when building a custom conversion pipeline:
+```bash
+pip install -e ".[optimization]"
+```
+
+## Cloud Optimized GeoTIFF
+
+Generate a tiled GeoTIFF with internal overviews, benchmark an existing COG,
+or compare candidate configurations:
 
 ```python
-from geoengine_utils.cloud import assess_pmtiles_input, iter_pyarrow_batches
+from geoengine_utils.cloud import (
+    COGConfiguration,
+    benchmark_cog_configurations,
+    convert_to_cog,
+    suggest_cog_configuration,
+)
 
-report = assess_pmtiles_input("example.geoparquet")
-if report.passed:
-    for batch in iter_pyarrow_batches("example.geoparquet", batch_size=10_000):
-        convert_batch_to_tiles(batch)
+convert_to_cog("photo_dem.tif", "photo_dem-cog.tif", block_size=256)
+
+results = benchmark_cog_configurations(
+    "photo_dem.tif",
+    [
+        COGConfiguration(block_size=128, compression="deflate"),
+        COGConfiguration(block_size=256, compression="deflate"),
+        COGConfiguration(block_size=256, compression="lzw", compression_level=None),
+    ],
+)
+
+suggestion = suggest_cog_configuration(results, target_read_seconds=0.1)
+print(suggestion.recommended.format_report())
 ```
 
-The optional PyArrow dependency is installed with `pip install geoengine-utils[cloud]`.
-The optional cloud dependencies are installed with `pip install geoengine-utils[cloud]`.
+COG reports include dimensions, compression, block layout, overview levels,
+validity, archive size, and representative aligned read timing.
 
-Benchmark an archive or compare candidate tile configurations:
+For the repository's 2,121 x 2,091 single-band `int16` DEM, a benchmark found
+that Deflate with 256 x 256 blocks produced the smallest tested COG:
+
+| Configuration | Output size | Read time | Conversion time |
+| --- | ---: | ---: | ---: |
+| Deflate, 128 x 128 blocks | 608,969 bytes | 0.005 s | 0.254 s |
+| Deflate, 256 x 256 blocks | 597,827 bytes | 0.008 s | 0.261 s |
+| LZW, 128 x 128 blocks | 1,457,165 bytes | 0.004 s | 0.186 s |
+| LZW, 256 x 256 blocks | 1,448,663 bytes | 0.009 s | 0.188 s |
+
+All candidates were valid and included overview levels `2, 4, 8, 16, 32`.
+
+## PMTiles
+
+Run PMTiles preflight checks before converting vector data:
+
+```python
+from geoengine_utils.cloud import assess_pmtiles_input, convert_vector_to_pmtiles
+
+report = assess_pmtiles_input("buildings.gpkg")
+if report.passed:
+    convert_vector_to_pmtiles(
+        "buildings.gpkg",
+        "buildings.pmtiles",
+        layer_name="buildings",
+        min_zoom=0,
+        max_zoom=8,
+        batch_size=10_000,
+    )
+```
+
+The converter reprojects to Web Mercator, clips and simplifies geometries by
+zoom, encodes gzip-compressed Mapbox Vector Tiles, and stages tile features in
+a temporary disk-backed SQLite store. GeoParquet inputs are read in bounded
+PyArrow batches.
+
+Benchmark an archive or compare tile configurations:
 
 ```python
 from geoengine_utils.cloud import (
@@ -207,146 +232,64 @@ from geoengine_utils.cloud import (
     suggest_pmtiles_configuration,
 )
 
-report = benchmark_pmtiles_archive("example.pmtiles")
-print(report.format_report())
+print(benchmark_pmtiles_archive("buildings.pmtiles").format_report())
 
 results = benchmark_pmtiles_configurations(
-    "example.geoparquet",
+    "buildings.gpkg",
     [
-        PMTilesConfiguration(min_zoom=0, max_zoom=8),
-        PMTilesConfiguration(min_zoom=0, max_zoom=12, simplify_factor=0.25),
+        PMTilesConfiguration(min_zoom=0, max_zoom=4),
+        PMTilesConfiguration(min_zoom=0, max_zoom=6),
     ],
 )
 suggestion = suggest_pmtiles_configuration(results, target_p95_tile_bytes=50_000)
-print(suggestion.rationale)
+print(suggestion.recommended.format_report())
 ```
 
-Archive reports include file and tile sizes, zoom coverage, a deterministic
-sampled p95 tile size, and representative read timing. Configuration sweeps
-write candidates to a temporary directory and rank them against the requested
-p95 tile-size target.
+PMTiles reports include archive size, tile count, average and p95 tile size,
+zoom coverage, payload fraction, and representative read timing.
 
-### COG generation and benchmarking
+## Validation schemas and ETL checks
 
-Create a tiled Cloud Optimized GeoTIFF, compare candidate configurations, and
-select a valid archive based on size and optional read-time targets:
+Use typed schemas when a pipeline needs an explicit contract:
 
 ```python
-from geoengine_utils.cloud import (
-    COGConfiguration,
-    benchmark_cog,
-    benchmark_cog_configurations,
-    convert_to_cog,
-    suggest_cog_configuration,
+from geoengine_utils import RasterDataset, VectorDataset, validate_dataset
+
+raster = RasterDataset(
+    name="dem",
+    path="dem.tif",
+    crs="EPSG:32616",
+    bounds=(0, 0, 1, 1),
+)
+vector = VectorDataset(
+    name="buildings",
+    crs="EPSG:4326",
+    bounds=(0, 0, 1, 1),
+    geometry=None,
+    topology=False,
 )
 
-convert_to_cog("example.tif", "example-cog.tif", block_size=256)
-print(benchmark_cog("example-cog.tif").format_report())
+print(raster.validate().format_report())
+print(vector.validate().format_report())
 
-results = benchmark_cog_configurations(
-    "example.tif",
-    [
-        COGConfiguration(block_size=128, compression="deflate"),
-        COGConfiguration(block_size=256, compression="lzw", compression_level=None),
-    ],
-)
-suggestion = suggest_cog_configuration(results, target_read_seconds=0.1)
-print(suggestion.rationale)
+@validate_dataset(input_schema=VectorDataset, output_schema=VectorDataset)
+def transform(data):
+    return data
 ```
 
-COG reports include dimensions, compression, block layout, overview levels,
-validity, archive size, and representative aligned read timing.
+## Development
 
-Example benchmark for a 2,121 x 2,091 single-band `int16` DEM:
+Install development dependencies and run the checks:
 
-| Configuration | Output size | Read time | Conversion time |
-| --- | ---: | ---: | ---: |
-| Deflate, 128 x 128 blocks | 608,969 bytes | 0.005 s | 0.254 s |
-| Deflate, 256 x 256 blocks | 597,827 bytes | 0.008 s | 0.261 s |
-| LZW, 128 x 128 blocks | 1,457,165 bytes | 0.004 s | 0.186 s |
-| LZW, 256 x 256 blocks | 1,448,663 bytes | 0.009 s | 0.188 s |
-
-All candidates were valid COGs with overview levels `2, 4, 8, 16, 32`.
-For this DEM, the recommendation was Deflate compression with 256 x 256
-blocks and compression level 6 because it produced the smallest archive while
-meeting the 0.1-second read target.
-
-For raster data, the same helper works with a raster file path:
-
-```python
-from geoengine_utils import estimate_crs
-
-recommendation = estimate_crs("example.tif")
-print(recommendation.recommended)
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+ruff check src tests
 ```
 
-For country-specific defaults, the package can also recommend a CRS from a country centroid.
-
----
-
-## Philosophy
-
-geoengine-utils aims to answer one question:
-
-> **"Is this dataset ready for production?"**
-
-Instead of simply reading metadata, geoengine-utils focuses on validating datasets against best practices used in modern geospatial data engineering workflows.
-
-Future validation will include checks for:
-
-- CRS validity
-- NoData values
-- Internal tiling
-- Compression
-- Overviews
-- Cloud Optimized GeoTIFF compliance
-- Metadata completeness
-- Resolution consistency
-- File integrity
-
----
-
-## Roadmap
-
-### Version 0.1
-
-- [x] Read raster metadata
-- [x] Validate raster metadata
-
-### Version 0.2
-
-- [ ] Raster statistics
-- [ ] Pretty validation reports
-
-### Version 0.3
-
-- [ ] COG validation
-
-### Version 0.4
-
-- [ ] Convert raster to COG
-
-### Version 0.5
-
-- [ ] Vector utilities
-
-### Version 1.0
-
-- [ ] CLI
-- [ ] Documentation website
-- [ ] PyPI package
-- [ ] GitHub Actions
-- [ ] Complete test suite
-
----
-
-## Contributing
-
-Contributions are welcome!
-
-If you have ideas for improving geoengine-utils or spot a bug, feel free to open an issue or submit a pull request.
-
----
+The repository contains focused tests for CRS selection, raster handling,
+vector repair, static format optimization, COG generation, PMTiles conversion,
+and CLI behavior.
 
 ## License
 

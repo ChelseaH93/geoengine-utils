@@ -22,6 +22,9 @@ cloud = [
     "pyarrow>=15.0",
     "pmtiles>=3.0",
 ]
+optimization = [
+    "pyarrow>=15.0",
+]
 
 [tool.ruff]
 line-length = 100

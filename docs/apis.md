@@ -128,6 +128,37 @@ print(assess_readiness("demo.geojson").format_report())
 
 For ETL-style pipelines that want to validate function inputs/outputs against a typed schema explicitly, the lower-level schema classes and decorator remain available.
 
+### Static vector format optimization
+
+The general optimization package benchmarks common static vector formats
+independently of the cloud-specific PMTiles and COG helpers:
+
+```python
+from geoengine_utils.optimization import (
+    StaticDataConfiguration,
+    benchmark_static_configurations,
+    suggest_static_optimization,
+)
+
+results = benchmark_static_configurations(
+    "buildings.geojson",
+    [
+        StaticDataConfiguration("geoparquet", compression="zstd"),
+        StaticDataConfiguration("geopackage"),
+        StaticDataConfiguration("shapefile"),
+        StaticDataConfiguration("geojson"),
+    ],
+)
+suggestion = suggest_static_optimization(results, target_read_seconds=0.5)
+print(suggestion.recommended.format_report())
+```
+
+Use `benchmark_static_dataset` to inspect an existing file. Reports capture
+storage including Shapefile sidecars, read time, feature count, schema size,
+geometry types, CRS, and bounds.
+
+Install GeoParquet support with `pip install geoengine-utils[optimization]`.
+
 ```python
 from geoengine_utils import RasterDataset, VectorDataset, ValidationReport, validate_dataset
 
