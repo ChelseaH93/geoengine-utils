@@ -9,9 +9,13 @@ from pmtiles.reader import MmapSource, Reader, all_tiles
 from shapely.geometry import Point, Polygon, box
 
 from geoengine_utils.cloud import (
+    PMTilesConfiguration,
     assess_pmtiles_input,
+    benchmark_pmtiles_archive,
+    benchmark_pmtiles_configurations,
     convert_vector_to_pmtiles,
     iter_pyarrow_batches,
+    suggest_pmtiles_configuration,
 )
 from geoengine_utils.validation import assess_readiness
 
@@ -110,6 +114,49 @@ def test_convert_vector_to_pmtiles_writes_readable_archive(tmp_path):
         assert tile is not None
         decoded = mapbox_vector_tile.decode(gzip.decompress(tile))
         assert len(decoded["data"]["features"]) == 2
+
+
+def test_benchmark_pmtiles_archive_reports_tile_metrics(tmp_path):
+    source = tmp_path / "source.geojson"
+    output = tmp_path / "output.pmtiles"
+    frame = gpd.GeoDataFrame(
+        geometry=[Point(0, 0), Point(0.01, 0.01)],
+        crs="EPSG:4326",
+    )
+    frame.to_file(source, driver="GeoJSON")
+    convert_vector_to_pmtiles(source, output, min_zoom=0, max_zoom=1)
+
+    report = benchmark_pmtiles_archive(output, sample_tiles=1)
+
+    assert report.tile_count > 0
+    assert report.total_tile_bytes > 0
+    assert report.p95_tile_bytes > 0
+    assert report.to_dict()["tile_payload_fraction"] > 0
+    assert "tiles" in report.format_report()
+
+
+def test_benchmark_configurations_and_suggestion_rank_candidates(tmp_path):
+    source = tmp_path / "source.geojson"
+    frame = gpd.GeoDataFrame(geometry=[Point(0, 0)], crs="EPSG:4326")
+    frame.to_file(source, driver="GeoJSON")
+    configurations = [
+        PMTilesConfiguration(min_zoom=0, max_zoom=0),
+        {"min_zoom": 0, "max_zoom": 1, "simplify": False},
+    ]
+
+    results = benchmark_pmtiles_configurations(source, configurations, sample_tiles=1)
+    suggestion = suggest_pmtiles_configuration(results, target_p95_tile_bytes=100_000)
+
+    assert len(results) == 2
+    assert all(result.configuration is not None for result in results)
+    assert suggestion.recommended.p95_tile_bytes <= 100_000
+    assert len(suggestion.alternatives) == 1
+    assert suggestion.to_dict()["recommended"]["configuration"] is not None
+
+
+def test_suggest_pmtiles_configuration_rejects_empty_reports():
+    with pytest.raises(ValueError, match="reports"):
+        suggest_pmtiles_configuration([])
 
 
 def test_convert_vector_to_pmtiles_streams_geoparquet_batches(tmp_path):

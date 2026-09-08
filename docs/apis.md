@@ -88,6 +88,33 @@ for batch in iter_pyarrow_batches("example.geoparquet", batch_size=10_000):
 
 Install the optional dependencies with `pip install geoengine-utils[cloud]`.
 
+### COG generation and benchmarking
+
+COG helpers write tiled GeoTIFFs with internal overviews and support the same
+candidate benchmarking pattern as the PMTiles helpers:
+
+```python
+from geoengine_utils.cloud import (
+    COGConfiguration,
+    benchmark_cog_configurations,
+    suggest_cog_configuration,
+)
+
+results = benchmark_cog_configurations(
+    "example.tif",
+    [
+        COGConfiguration(block_size=128, compression="deflate"),
+        COGConfiguration(block_size=256, compression="lzw", compression_level=None),
+    ],
+)
+suggestion = suggest_cog_configuration(results, target_read_seconds=0.1)
+print(suggestion.recommended.format_report())
+```
+
+Use `convert_to_cog` for a single conversion and `benchmark_cog` to inspect an
+existing archive. Reports include dimensions, compression, block layout,
+overview levels, COG validity, file size, and sampled read timing.
+
 ### Readiness assessment
 
 `assess_readiness` is the single entry point for checking whether a raster or vector dataset is ready for production use. It accepts a file path, a GeoDataFrame/GeoSeries, or an iterable of geometries and infers the dataset type and metadata it needs automatically.

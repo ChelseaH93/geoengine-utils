@@ -3,19 +3,234 @@
 from __future__ import annotations
 
 import json
+import math
+import random
 import sqlite3
+import time
 from collections import defaultdict
 from contextlib import closing
+from dataclasses import dataclass, replace
 from os import PathLike
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, Iterator, Sequence
+from typing import Any, Iterator, Mapping, Sequence
 
 import geopandas as gpd
 from pyproj import CRS
 from shapely.geometry import box
 
 from ..validation import ValidationReport, assess_readiness
+
+
+@dataclass(frozen=True)
+class PMTilesBenchmarkReport:
+	"""Measured characteristics of a PMTiles archive."""
+
+	archive_path: Path
+	elapsed_seconds: float
+	read_seconds: float
+	file_size_bytes: int
+	tile_count: int
+	total_tile_bytes: int
+	average_tile_bytes: float
+	p95_tile_bytes: float
+	max_tile_bytes: int
+	min_zoom: int
+	max_zoom: int
+	addressed_tiles_count: int
+	conversion_seconds: float | None = None
+	configuration: "PMTilesConfiguration | None" = None
+
+	@property
+	def tile_payload_fraction(self) -> float:
+		return self.total_tile_bytes / self.file_size_bytes if self.file_size_bytes else 0.0
+
+	def to_dict(self) -> dict[str, Any]:
+		return {
+			"archive_path": str(self.archive_path),
+			"elapsed_seconds": self.elapsed_seconds,
+			"read_seconds": self.read_seconds,
+			"file_size_bytes": self.file_size_bytes,
+			"tile_count": self.tile_count,
+			"total_tile_bytes": self.total_tile_bytes,
+			"average_tile_bytes": self.average_tile_bytes,
+			"p95_tile_bytes": self.p95_tile_bytes,
+			"max_tile_bytes": self.max_tile_bytes,
+			"min_zoom": self.min_zoom,
+			"max_zoom": self.max_zoom,
+			"addressed_tiles_count": self.addressed_tiles_count,
+			"tile_payload_fraction": self.tile_payload_fraction,
+			"conversion_seconds": self.conversion_seconds,
+			"configuration": self.configuration.to_dict() if self.configuration else None,
+		}
+
+	def format_report(self) -> str:
+		return (
+			f"{self.archive_path}: {self.file_size_bytes:,} bytes, "
+			f"{self.tile_count:,} tiles, average tile {self.average_tile_bytes:,.0f} bytes, "
+			f"p95 tile {self.p95_tile_bytes:,.0f} bytes, "
+			f"zoom {self.min_zoom}-{self.max_zoom}, read {self.read_seconds:.3f}s"
+		)
+
+
+@dataclass(frozen=True)
+class PMTilesConfiguration:
+	"""A conversion configuration that can be benchmarked."""
+
+	min_zoom: int = 0
+	max_zoom: int = 8
+	batch_size: int = 10_000
+	clip: bool = True
+	simplify: bool = True
+	simplify_factor: float = 0.5
+
+	def to_dict(self) -> dict[str, Any]:
+		return {
+			"min_zoom": self.min_zoom,
+			"max_zoom": self.max_zoom,
+			"batch_size": self.batch_size,
+			"clip": self.clip,
+			"simplify": self.simplify,
+			"simplify_factor": self.simplify_factor,
+		}
+
+
+@dataclass(frozen=True)
+class PMTilesConfigurationSuggestion:
+	"""A ranked recommendation based on benchmarked configurations."""
+
+	recommended: PMTilesBenchmarkReport
+	alternatives: tuple[PMTilesBenchmarkReport, ...]
+	rationale: str
+
+	def to_dict(self) -> dict[str, Any]:
+		return {
+			"recommended": self.recommended.to_dict(),
+			"alternatives": [report.to_dict() for report in self.alternatives],
+			"rationale": self.rationale,
+		}
+
+
+def benchmark_pmtiles_archive(
+	archive: str | PathLike[str],
+	*,
+	sample_tiles: int = 1_000,
+) -> PMTilesBenchmarkReport:
+	"""Benchmark archive size, tile density, and representative read latency.
+
+	Tile sizes are sampled with a deterministic reservoir, so large archives do
+	not require retaining every tile payload in memory. ``sample_tiles`` also
+	controls how many tile reads are timed after the archive scan.
+	"""
+
+	if sample_tiles <= 0:
+		raise ValueError("sample_tiles must be greater than zero")
+
+	from pmtiles.reader import MmapSource, Reader, all_tiles
+
+	archive_path = Path(archive)
+	started = time.perf_counter()
+	tile_sizes: list[int] = []
+	tile_ids: list[tuple[int, int, int]] = []
+	total_tile_bytes = 0
+	tile_count = 0
+	random_source = random.Random(0)
+	with archive_path.open("rb") as handle:
+		source = MmapSource(handle)
+		reader = Reader(source)
+		header = reader.header()
+		scan_started = time.perf_counter()
+		for index, (zxy, payload) in enumerate(all_tiles(source)):
+			tile_count += 1
+			total_tile_bytes += len(payload)
+			if len(tile_sizes) < sample_tiles:
+				tile_sizes.append(len(payload))
+			else:
+				position = random_source.randint(0, index)
+				if position < sample_tiles:
+					tile_sizes[position] = len(payload)
+			if len(tile_ids) < sample_tiles:
+				tile_ids.append(zxy)
+		for zoom, tile_x, tile_y in tile_ids:
+			reader.get(zoom, tile_x, tile_y)
+		read_seconds = time.perf_counter() - scan_started
+
+	sorted_sizes = sorted(tile_sizes)
+	p95_index = min(len(sorted_sizes) - 1, math.ceil(len(sorted_sizes) * 0.95) - 1)
+	return PMTilesBenchmarkReport(
+		archive_path=archive_path,
+		elapsed_seconds=time.perf_counter() - started,
+		read_seconds=read_seconds,
+		file_size_bytes=archive_path.stat().st_size,
+		tile_count=tile_count,
+		total_tile_bytes=total_tile_bytes,
+		average_tile_bytes=total_tile_bytes / tile_count if tile_count else 0.0,
+		p95_tile_bytes=float(sorted_sizes[p95_index]) if sorted_sizes else 0.0,
+		max_tile_bytes=max(tile_sizes, default=0),
+		min_zoom=header["min_zoom"],
+		max_zoom=header["max_zoom"],
+		addressed_tiles_count=header["addressed_tiles_count"],
+	)
+
+
+def benchmark_pmtiles_configurations(
+	source: Any,
+	configurations: Sequence[PMTilesConfiguration | Mapping[str, Any]],
+	*,
+	sample_tiles: int = 1_000,
+) -> tuple[PMTilesBenchmarkReport, ...]:
+	"""Convert and benchmark each candidate configuration in a temp directory."""
+
+	if not configurations:
+		raise ValueError("configurations must contain at least one candidate")
+	results: list[PMTilesBenchmarkReport] = []
+	with TemporaryDirectory() as temporary_directory:
+		for index, candidate in enumerate(configurations):
+			configuration = (
+				candidate
+				if isinstance(candidate, PMTilesConfiguration)
+				else PMTilesConfiguration(**candidate)
+			)
+			output = Path(temporary_directory) / f"candidate-{index}.pmtiles"
+			started = time.perf_counter()
+			convert_vector_to_pmtiles(source, output, **configuration.to_dict())
+			conversion_seconds = time.perf_counter() - started
+			report = benchmark_pmtiles_archive(output, sample_tiles=sample_tiles)
+			results.append(
+				replace(report, conversion_seconds=conversion_seconds, configuration=configuration)
+			)
+	return tuple(results)
+
+
+def suggest_pmtiles_configuration(
+	reports: Sequence[PMTilesBenchmarkReport],
+	*,
+	target_p95_tile_bytes: int = 50_000,
+) -> PMTilesConfigurationSuggestion:
+	"""Rank benchmark results, preferring small tiles and shorter conversions."""
+
+	if not reports:
+		raise ValueError("reports must contain at least one benchmark report")
+	if target_p95_tile_bytes <= 0:
+		raise ValueError("target_p95_tile_bytes must be greater than zero")
+
+	def score(report: PMTilesBenchmarkReport) -> tuple[float, float, float]:
+		over_target = max(0.0, report.p95_tile_bytes - target_p95_tile_bytes)
+		return (over_target, report.file_size_bytes, report.conversion_seconds or 0.0)
+
+	ranked = tuple(sorted(reports, key=score))
+	recommended = ranked[0]
+	if recommended.p95_tile_bytes <= target_p95_tile_bytes:
+		rationale = (
+			f"The recommended configuration keeps the measured p95 tile below "
+			f"the {target_p95_tile_bytes:,}-byte target while minimizing archive size."
+		)
+	else:
+		rationale = (
+			f"No candidate meets the {target_p95_tile_bytes:,}-byte p95 tile target; "
+			"the recommendation minimizes the amount by which candidates exceed it."
+		)
+	return PMTilesConfigurationSuggestion(recommended, ranked[1:], rationale)
 
 
 def assess_pmtiles_input(source: Any, *, batch_size: int = 10_000) -> ValidationReport:

@@ -197,6 +197,80 @@ if report.passed:
 The optional PyArrow dependency is installed with `pip install geoengine-utils[cloud]`.
 The optional cloud dependencies are installed with `pip install geoengine-utils[cloud]`.
 
+Benchmark an archive or compare candidate tile configurations:
+
+```python
+from geoengine_utils.cloud import (
+    PMTilesConfiguration,
+    benchmark_pmtiles_archive,
+    benchmark_pmtiles_configurations,
+    suggest_pmtiles_configuration,
+)
+
+report = benchmark_pmtiles_archive("example.pmtiles")
+print(report.format_report())
+
+results = benchmark_pmtiles_configurations(
+    "example.geoparquet",
+    [
+        PMTilesConfiguration(min_zoom=0, max_zoom=8),
+        PMTilesConfiguration(min_zoom=0, max_zoom=12, simplify_factor=0.25),
+    ],
+)
+suggestion = suggest_pmtiles_configuration(results, target_p95_tile_bytes=50_000)
+print(suggestion.rationale)
+```
+
+Archive reports include file and tile sizes, zoom coverage, a deterministic
+sampled p95 tile size, and representative read timing. Configuration sweeps
+write candidates to a temporary directory and rank them against the requested
+p95 tile-size target.
+
+### COG generation and benchmarking
+
+Create a tiled Cloud Optimized GeoTIFF, compare candidate configurations, and
+select a valid archive based on size and optional read-time targets:
+
+```python
+from geoengine_utils.cloud import (
+    COGConfiguration,
+    benchmark_cog,
+    benchmark_cog_configurations,
+    convert_to_cog,
+    suggest_cog_configuration,
+)
+
+convert_to_cog("example.tif", "example-cog.tif", block_size=256)
+print(benchmark_cog("example-cog.tif").format_report())
+
+results = benchmark_cog_configurations(
+    "example.tif",
+    [
+        COGConfiguration(block_size=128, compression="deflate"),
+        COGConfiguration(block_size=256, compression="lzw", compression_level=None),
+    ],
+)
+suggestion = suggest_cog_configuration(results, target_read_seconds=0.1)
+print(suggestion.rationale)
+```
+
+COG reports include dimensions, compression, block layout, overview levels,
+validity, archive size, and representative aligned read timing.
+
+Example benchmark for a 2,121 x 2,091 single-band `int16` DEM:
+
+| Configuration | Output size | Read time | Conversion time |
+| --- | ---: | ---: | ---: |
+| Deflate, 128 x 128 blocks | 608,969 bytes | 0.005 s | 0.254 s |
+| Deflate, 256 x 256 blocks | 597,827 bytes | 0.008 s | 0.261 s |
+| LZW, 128 x 128 blocks | 1,457,165 bytes | 0.004 s | 0.186 s |
+| LZW, 256 x 256 blocks | 1,448,663 bytes | 0.009 s | 0.188 s |
+
+All candidates were valid COGs with overview levels `2, 4, 8, 16, 32`.
+For this DEM, the recommendation was Deflate compression with 256 x 256
+blocks and compression level 6 because it produced the smallest archive while
+meeting the 0.1-second read target.
+
 For raster data, the same helper works with a raster file path:
 
 ```python
