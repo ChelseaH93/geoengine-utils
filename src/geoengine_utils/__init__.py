@@ -20,6 +20,10 @@ from .raster import (
 )
 from .validation import (
     DatasetSchema,
+    PostGISAuditReport,
+    PostGISIssue,
+    PostGISQueryPlan,
+    PostGISTableAudit,
     RasterDataset,
     ValidationError,
     ValidationIssue,
@@ -52,6 +56,10 @@ __all__ = [
     "transform_geometry",
     "validate_crs",
     "DatasetSchema",
+    "PostGISAuditReport",
+    "PostGISTableAudit",
+    "PostGISIssue",
+    "PostGISQueryPlan",
     "RasterDataset",
     "VectorDataset",
     "ValidationIssue",

@@ -25,6 +25,9 @@ cloud = [
 optimization = [
     "pyarrow>=15.0",
 ]
+postgis = [
+    "psycopg[binary]>=3.2",
+]
 
 [tool.ruff]
 line-length = 100

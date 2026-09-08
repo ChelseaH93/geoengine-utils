@@ -277,6 +277,45 @@ def transform(data):
     return data
 ```
 
+## PostGIS database audits
+
+Run a read-only audit against a live PostGIS connection or PostgreSQL DSN:
+
+```python
+from geoengine_utils.validation import audit_postgis
+
+report = audit_postgis(connection, schemas=["public"])
+print(report.format_report())
+```
+
+The audit checks PostGIS and server metadata, registered geometry columns,
+spatial GiST/SP-GiST indexes, table scan statistics, and per-table geometry
+quality. Quality checks report NULL, empty, and invalid geometries, as well as
+missing or unknown SRIDs. Findings include suggested SQL or follow-up actions
+for spatial indexing, statistics, and data repair.
+
+Inspect a specific query plan without executing the query:
+
+```python
+from geoengine_utils.validation import explain_postgis_query
+
+plan = explain_postgis_query(
+    connection,
+    "SELECT * FROM buildings WHERE geom && ST_MakeEnvelope(%s, %s, %s, %s, 4326)",
+    (-87.8, 41.7, -87.5, 42.1),
+)
+for issue in plan.issues:
+    print(issue.suggestion)
+```
+
+The package uses `EXPLAIN (FORMAT JSON)` and aggregate quality queries only;
+it does not run `EXPLAIN ANALYZE` or modify database data. For DSN-based
+connections, install the optional dependency:
+
+```bash
+pip install -e ".[postgis]"
+```
+
 ## Development
 
 Install development dependencies and run the checks:

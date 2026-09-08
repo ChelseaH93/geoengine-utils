@@ -10,12 +10,26 @@ and the ``validate_dataset`` decorator remain available for callers building
 typed ETL pipelines that want to validate function inputs/outputs explicitly.
 """
 
+from .postgis import (
+    PostGISAuditReport,
+    PostGISIssue,
+    PostGISQueryPlan,
+    PostGISTableAudit,
+    audit_postgis,
+    explain_postgis_query,
+)
 from .readiness import assess_readiness
 from .report import ValidationError, ValidationIssue, ValidationReport
 from .schemas import DatasetSchema, RasterDataset, VectorDataset, validate_dataset
 
 __all__ = [
     "assess_readiness",
+    "PostGISAuditReport",
+    "PostGISTableAudit",
+    "PostGISIssue",
+    "PostGISQueryPlan",
+    "audit_postgis",
+    "explain_postgis_query",
     "DatasetSchema",
     "RasterDataset",
     "VectorDataset",
