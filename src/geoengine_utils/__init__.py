@@ -19,18 +19,24 @@ from .raster import (
     resample_raster,
 )
 from .validation import (
+    DatabaseSchemaValidationReport,
+    DatabaseTableSchema,
     DatasetSchema,
     PostGISAuditReport,
     PostGISIssue,
     PostGISQueryPlan,
     PostGISTableAudit,
     RasterDataset,
+    SchemaColumn,
+    SchemaValidationIssue,
     ValidationError,
     ValidationIssue,
     ValidationReport,
     VectorDataset,
     assess_readiness,
     validate_dataset,
+    validate_duckdb_schema,
+    validate_snowflake_schema,
 )
 
 
@@ -60,6 +66,12 @@ __all__ = [
     "PostGISTableAudit",
     "PostGISIssue",
     "PostGISQueryPlan",
+    "DatabaseSchemaValidationReport",
+    "DatabaseTableSchema",
+    "SchemaColumn",
+    "SchemaValidationIssue",
+    "validate_duckdb_schema",
+    "validate_snowflake_schema",
     "RasterDataset",
     "VectorDataset",
     "ValidationIssue",

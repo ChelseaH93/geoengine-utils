@@ -28,6 +28,12 @@ optimization = [
 postgis = [
     "psycopg[binary]>=3.2",
 ]
+snowflake = [
+    "snowflake-connector-python>=3.0",
+]
+duckdb = [
+    "duckdb>=1.0",
+]
 
 [tool.ruff]
 line-length = 100

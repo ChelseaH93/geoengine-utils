@@ -316,6 +316,45 @@ connections, install the optional dependency:
 pip install -e ".[postgis]"
 ```
 
+## Snowflake and DuckDB schema validation
+
+Validate the structure of Snowflake or DuckDB schemas using their native
+`information_schema` catalogs. The validators are read-only and can inspect an
+existing DB-API connection; driver imports are lazy.
+
+```python
+from geoengine_utils.validation import (
+    validate_duckdb_schema,
+    validate_snowflake_schema,
+)
+
+expected = {
+    "buildings": {
+        "id": "INTEGER",
+        "geom_wkt": "VARCHAR",
+    }
+}
+
+duckdb_report = validate_duckdb_schema(duckdb_connection, expected=expected)
+print(duckdb_report.format_report())
+
+snowflake_report = validate_snowflake_schema(
+    snowflake_connection,
+    schema="ANALYTICS",
+    expected={"BUILDINGS": {"ID": "INTEGER", "GEOM_WKT": "VARCHAR"}},
+)
+print(snowflake_report.format_report())
+```
+
+Reports inventory tables and columns, normalize common type aliases, and flag
+missing tables, missing columns, type mismatches, and undeclared columns. The
+optional drivers can be installed with:
+
+```bash
+pip install -e ".[duckdb]"
+pip install -e ".[snowflake]"
+```
+
 ## Development
 
 Install development dependencies and run the checks:

@@ -10,6 +10,14 @@ and the ``validate_dataset`` decorator remain available for callers building
 typed ETL pipelines that want to validate function inputs/outputs explicitly.
 """
 
+from .database_schema import (
+    DatabaseSchemaValidationReport,
+    DatabaseTableSchema,
+    SchemaColumn,
+    SchemaValidationIssue,
+    validate_duckdb_schema,
+    validate_snowflake_schema,
+)
 from .postgis import (
     PostGISAuditReport,
     PostGISIssue,
@@ -30,6 +38,12 @@ __all__ = [
     "PostGISQueryPlan",
     "audit_postgis",
     "explain_postgis_query",
+    "DatabaseSchemaValidationReport",
+    "DatabaseTableSchema",
+    "SchemaColumn",
+    "SchemaValidationIssue",
+    "validate_duckdb_schema",
+    "validate_snowflake_schema",
     "DatasetSchema",
     "RasterDataset",
     "VectorDataset",
