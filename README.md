@@ -481,6 +481,9 @@ ruff check src tests
 python -m geoengine_utils.cli ci .geoengine-utils-ci.json --json
 ```
 
+The CI test command enforces a minimum overall coverage of 80% and prints
+missing lines in the test output.
+
 The repository contains focused tests for CRS selection, raster handling,
 vector repair, static format optimization, COG generation, PMTiles conversion,
 and CLI behavior.

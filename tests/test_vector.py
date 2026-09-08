@@ -1,4 +1,5 @@
 import geopandas as gpd
+import pytest
 from shapely.geometry import Point, Polygon
 
 from geoengine_utils.validation import assess_readiness
@@ -114,3 +115,32 @@ def test_repair_vector_can_drop_empty_geometries():
 
     assert len(repaired) == 1
     assert repaired.geometry.iloc[0].equals(Point(0, 0))
+
+
+def test_convert_vector_rejects_unsupported_inputs():
+    with pytest.raises(TypeError):
+        convert_vector(["not geometry"])
+
+
+def test_assess_readiness_reports_missing_and_unreadable_paths(tmp_path):
+    missing = assess_readiness(tmp_path / "missing.geojson")
+    unreadable_path = tmp_path / "unreadable.geojson"
+    unreadable_path.write_text("not geojson", encoding="utf-8")
+    unreadable = assess_readiness(unreadable_path)
+
+    assert not missing.passed
+    assert any("not found" in error.lower() for error in missing.errors)
+    assert not unreadable.passed
+    assert any("could not be read" in error.lower() for error in unreadable.errors)
+
+
+def test_assess_readiness_reports_empty_and_non_geometry_iterables():
+    empty_series = assess_readiness(gpd.GeoSeries([], crs="EPSG:4326"))
+    empty_iterable = assess_readiness([])
+    invalid_iterable = assess_readiness(["not geometry"])
+    empty_frame = assess_readiness(gpd.GeoDataFrame(geometry=[], crs="EPSG:4326"))
+
+    assert not empty_series.passed
+    assert not empty_iterable.passed
+    assert not invalid_iterable.passed
+    assert not empty_frame.passed

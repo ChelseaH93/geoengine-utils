@@ -1,3 +1,5 @@
+import pytest
+
 from geoengine_utils import (
     assess_readiness,
     get_raster_metadata,
@@ -44,3 +46,15 @@ def test_recommend_resampling_for_upsampling(raster_path, tmp_path):
 
     assert result.target_width == 200
     assert target.exists()
+
+
+def test_recommend_resampling_supports_pixel_size_and_same_dimensions(raster_path):
+    pixel = recommend_resampling(raster_path, target_pixel_size=(2, 2))
+    same = recommend_resampling(raster_path, target_width=10, target_height=10)
+    assert pixel.target_width > 0
+    assert same.resampling == "nearest"
+
+
+def test_resample_raster_rejects_invalid_strategy(raster_path, tmp_path):
+    with pytest.raises(ValueError, match="Unsupported"):
+        resample_raster(raster_path, tmp_path / "bad.tif", target_width=5, target_height=5, resampling="bad")

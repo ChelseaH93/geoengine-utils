@@ -5,12 +5,19 @@ import geopandas as gpd
 import pytest
 from shapely.geometry import box
 
+from geoengine_utils.crs.country_lookup import (
+    _build_country_frame,
+    get_countries,
+    get_country,
+    get_country_centroid,
+)
 from geoengine_utils.crs.recommend import (
     estimate_crs,
     recommend,
     recommend_crs,
     score_crs,
 )
+from geoengine_utils.crs.transform import transform_geometry
 
 
 def test_recommendation_has_reason():
@@ -127,3 +134,22 @@ def test_recommend_country_uses_country_override():
 
     assert result.recommended.code == "32734"
     assert result.reason
+
+
+def test_country_lookup_builds_fallback_and_centroid():
+    get_countries.cache_clear()
+    countries = _build_country_frame([{"ADMIN": "Testland", "geometry": box(1, 2, 3, 4)}])
+    assert countries.iloc[0]["recommended_crs"] == "EPSG:32631"
+
+    row = get_country("France")
+    centroid = get_country_centroid("France")
+    assert row["ADMIN"] == "France"
+    assert centroid["utm_epsg"] == 32631
+
+    with pytest.raises(ValueError, match="not found"):
+        get_country("Missingland")
+
+
+def test_transform_geometry_reprojects_coordinates():
+    transformed = transform_geometry(box(0, 0, 1, 1), "EPSG:4326", "EPSG:3857")
+    assert transformed.bounds[2] > 100_000
